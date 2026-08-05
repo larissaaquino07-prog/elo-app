@@ -1,41 +1,75 @@
 # ARCHITECTURE.md
 
-Technical architecture for the personal AI English coach. Complements `PROJECT.md` (why) with the how. Assumes decisions D1–D4 in `PROJECT.md` §8 unless noted as still open.
+Technical architecture for the personal AI English coach. Complements `PROJECT.md` (why) with the how. Implements confirmed decisions D1–D4 (`PROJECT.md` §8).
 
 ---
 
 ## 1. Platform target
 
-- **Client**: iOS, built with **Expo (SDK 57)** + **React Native** + **TypeScript**, reusing the existing `elo-app` repo's technical scaffold (React Navigation, `expo-linear-gradient`, `expo-blur`, `react-native-svg`).
-  - Per `AGENTS.md`, Expo SDK 57 changed significantly from prior versions — all implementation must be checked against `https://docs.expo.dev/versions/v57.0.0/` at build time, not against older training knowledge.
-- All fitness-domain code (`src/screens/*`, `src/data/mockData.ts`, `src/theme/sports.ts`, fitness-specific types in `src/types.ts`) is removed in Phase 1; navigation shell, theming approach, and component patterns (cards, toasts, toggles, screen container) are kept as a starting point since they already meet the "everything should feel premium" principle.
-- Android is out of scope (brief specifies iOS only, personal use).
+- **Client**: native iOS app, **Swift 6**, **SwiftUI**, minimum deployment target **iOS 18**. Built as a fresh Xcode project inside this repository, replacing the prior Expo/React Native scaffold entirely — that scaffold belonged to an unrelated project and is not migrated, adapted, or referenced.
+- Swift 6's strict concurrency checking is adopted from day one (not opted out of) — for a codebase meant to last years, starting with the strictest available data-race safety is cheaper than retrofitting it later.
+- Android/Web/Desktop are explicitly out of scope for v1, but the **backend is built to not assume an iOS-only client** (see §6), so those remain additive later, not a rewrite.
 
-## 2. High-level system
+## 2. Architecture pattern: MVVM + Clean Architecture
+
+Three layers, dependencies point inward (Presentation → Domain ← Data); Domain has no knowledge of SwiftUI, Supabase, or any vendor SDK:
+
+```
+Presentation/            SwiftUI Views + ViewModels (@Observable), per-feature (Onboarding, Chat, Voice, Progress)
+Domain/                  Use cases (interactors), Entities (plain Swift types), Repository & Engine protocols
+Data/                    Repository implementations, SwiftData store, Supabase client, network/API adapters
+```
+
+This split is what makes decision D2's provider-swapping requirement real rather than aspirational: **Domain defines protocols, Data implements them against a specific vendor.** Swapping Claude or the Realtime API for another provider later means writing a new Data-layer adapter — Presentation and Domain code do not change.
+
+```swift
+// Domain layer — vendor-agnostic
+protocol ConversationEngine {
+    func respond(to context: SessionContext) async throws -> AsyncStream<ConversationChunk>
+}
+
+protocol VoiceEngine {
+    func startSession(seededWith context: SessionContext) async throws -> VoiceSession
+}
+
+protocol MemoryExtractionEngine {
+    func extract(from transcript: Transcript) async throws -> MemoryUpdate
+}
+
+// Data layer — one concrete adapter per provider, injected at composition root
+final class ClaudeConversationEngine: ConversationEngine { /* calls backend, not Anthropic directly */ }
+final class OpenAIRealtimeVoiceEngine: VoiceEngine { /* calls backend-issued ephemeral token */ }
+```
+
+## 3. High-level system
 
 ```mermaid
 flowchart LR
-  subgraph Client [iOS App — Expo/React Native]
-    UI[Conversation UI\n+ Progress Dashboard]
-    VoiceIO[Voice capture / playback]
+  subgraph iOSApp [iOS App — Swift 6 / SwiftUI]
+    Presentation[Presentation\nViews + ViewModels]
+    DomainL[Domain\nUse cases, Entities,\nEngine/Repository protocols]
+    DataL[Data\nSwiftData store,\nSupabase client,\nEngine adapters]
+    Native[Native frameworks:\nSpeech, AVFoundation,\nAVSpeechSynthesizer,\nWidgetKit, UserNotifications]
   end
 
-  subgraph Backend [Supabase Edge Functions - orchestration layer]
+  subgraph Backend [Platform-agnostic backend]
     Orchestrator[Session Orchestrator]
-    MemoryWriter[Post-session Memory Extraction Job]
+    MemoryWriter[Memory Extraction Job]
     Scheduler[Adaptive Learning Scheduler]
   end
 
   subgraph Data [Supabase Postgres]
     Structured[(Structured memory:\nvocabulary, mistakes,\nsessions, goals, topics)]
-    Vector[(pgvector:\nsemantic memory /\nconversation embeddings)]
+    Vector[(pgvector:\nsemantic memory)]
   end
 
-  Claude[Anthropic Claude API\nreasoning, lesson generation,\nmistake analysis, memory extraction]
-  Realtime[OpenAI Realtime API\nlow-latency speech loop]
+  Claude[Anthropic Claude API]
+  Realtime[OpenAI Realtime API]
 
-  UI <--> Orchestrator
-  VoiceIO <--> Realtime
+  Presentation --> DomainL --> DataL
+  DataL --> Native
+  DataL <-->|sync| Backend
+  DataL <-->|local cache/offline queue| SwiftDataStore[(SwiftData\non-device store)]
   Orchestrator --> Claude
   Orchestrator --> Realtime
   Orchestrator --> Structured
@@ -47,41 +81,44 @@ flowchart LR
   Scheduler --> Orchestrator
 ```
 
-Key principle: **the client never talks to Claude or the Realtime API directly.** API keys live only in the Supabase Edge Functions layer. This matters even for a personal app — an IPA can be inspected, and a leaked key on a device used for years is a real liability, not a theoretical one.
+Key principle unchanged from the initial pass: **the client never talks to Claude or the Realtime API directly.** API keys live only in the backend layer. The backend is deliberately treated as "our own service" (§6) — a thin proxy — rather than the client hitting Supabase's auto-generated API directly for anything AI-related, since that's the layer a future Web/Desktop client would also depend on.
 
-## 3. Core subsystems
+## 4. Local persistence & sync (SwiftData ↔ Supabase)
 
-### 3.1 Conversation orchestration
+**Supabase Postgres is the sole source of truth.** SwiftData is a durable local cache plus an offline write queue — never a competing authority. This distinction drives every rule below.
 
-A thin backend layer (Supabase Edge Functions, Deno/TypeScript) that, per session:
+- **SwiftData models** mirror the subset of the server schema needed on-device: `Session`, `VocabularyItem`, `Mistake`, `Topic`, `Goal`, `Streak`. Each carries two client-only fields: `localID: UUID` (stable identity before a server ID exists) and `syncStatus: SyncStatus` (`synced` / `pendingUpload` / `pendingExtraction`).
+- **Write path (offline-first)**: user actions (finishing a session, onboarding answers) write to SwiftData immediately, marked `pendingUpload`. A `SyncCoordinator` uploads pending writes to Supabase when connectivity is available (foreground trigger + `BGTaskScheduler` background refresh), then flips them to `synced`.
+- **Read path**: ViewModels read from SwiftData for instant, offline-capable UI; the `SyncCoordinator` pulls remote changes (via an `updated_at` watermark, or Supabase Realtime subscriptions where latency matters, e.g. cross-device continuity later) and merges them into SwiftData in the background.
+- **Conflict resolution strategy** (concrete, not left as "sync automatically"):
+  - *Append-only tables* (`sessions`, `vocabulary_items`, `mistakes` as new occurrences) — conflicts are structurally rare: new local rows just insert remotely. No merge logic needed.
+  - *Mutable aggregate fields* (`streaks.current_streak_days`, `topics.status`, `goals.achieved`, vocabulary `mastery_level`) — **server timestamp wins**. The server's `updated_at` is authoritative; a local pending write older than the server's current value is discarded and replaced by the pulled value, with a non-blocking UI notice ("synced from your other update") rather than a silent, invisible overwrite.
+  - Memory Extraction (§5) only ever runs server-side, after a transcript successfully uploads — an offline voice/text session queues for extraction, it does not attempt extraction on-device.
+- Local SwiftData store uses **iOS Data Protection** (`.completeUntilFirstUserAuthentication` or stricter) since it holds the same sensitive conversation content as the server (see §7).
 
-1. Loads the user's current memory snapshot (structured facts + top-k semantically relevant past conversation summaries via `pgvector` similarity search).
-2. Asks the **Adaptive Learning Scheduler** what today's session should prioritize (topic, difficulty, business/daily ratio, specific mistakes to target).
-3. Builds a system prompt/context package and starts either:
-   - a **text conversation** with Claude (Phase 1–3), or
-   - a **voice session** via the OpenAI Realtime API, seeded with the same context (Phase 4+).
-4. Streams the response back to the client.
-5. On session end, enqueues the **Memory Extraction Job**.
+## 5. Core subsystems
 
-### 3.2 Long-term memory (Principle 1)
+### 5.1 Conversation orchestration
 
-Two tiers, both required — one alone doesn't satisfy "remember everything":
+A backend Session Orchestrator that, per session:
 
-- **Structured memory** (Postgres tables, see §5) — precise, queryable, drives the adaptive scheduler. Example: "mistake: confuses `since`/`for`, occurred 4 times, last seen 12 days ago."
-- **Semantic memory** (`pgvector` embeddings over conversation summaries, one row per session) — fuzzy recall for things that don't fit a rigid schema. Example: "the time we role-played the layoff conversation" is retrievable by meaning, not by exact tag.
+1. Loads the memory snapshot (structured facts + top-k semantically relevant past session summaries via `pgvector`).
+2. Asks the **Adaptive Learning Scheduler** what today's session should prioritize (topic, difficulty, business/daily ratio, mistakes to target).
+3. Streams a conversation via `ConversationEngine` (Claude) for text sessions, or issues an ephemeral token for `VoiceEngine` (OpenAI Realtime) seeded with the same context, for voice sessions.
+4. On session end, enqueues the Memory Extraction Job.
 
-A **Memory Extraction Job** (Claude, run async after each session, not blocking the UI) reads the raw transcript and:
-- extracts new vocabulary/expressions used or taught
-- logs grammar/pronunciation mistakes (type, example, correction)
-- updates topic coverage status (introduced / practiced / mastered)
-- writes a session summary + embedding
-- updates streak/confidence/speaking-speed metrics where inferable
+### 5.2 Long-term memory (Principle 1)
 
-Raw transcripts are retained (Principle 1: nothing disappears without explicit permission) but are not the primary data used for future context — the structured + summarized layers are, to keep prompt context bounded and cheap as history grows across years.
+Two tiers server-side (unchanged from the initial pass, now explicitly the authoritative copy behind the SwiftData cache described in §4):
 
-### 3.3 Adaptive learning engine (Principle 2 & 3)
+- **Structured memory** — precise, queryable, drives the adaptive scheduler.
+- **Semantic memory** (`pgvector` embeddings over session summaries) — fuzzy recall beyond rigid tags.
 
-A scoring function over the structured memory, re-evaluated at the start of each session (not a heavyweight ML model — a transparent, tunable heuristic, since explainability matters for a coach the user trusts for years):
+A **Memory Extraction Job** (Claude, async, server-side only) reads each transcript and updates vocabulary, mistakes, topic coverage, a session summary + embedding, and streak/confidence/speaking-speed metrics.
+
+### 5.3 Adaptive learning engine (Principle 2 & 3)
+
+Unchanged scoring approach:
 
 ```
 priority(topic) = w1 * recency_decay(last_seen)
@@ -91,36 +128,50 @@ priority(topic) = w1 * recency_decay(last_seen)
                 - w5 * mastery_level(topic)
 ```
 
-Output feeds two things:
-- **Per-session focus** (which mistakes to target, what difficulty).
-- **Weekly HR scenario generator** (Principle: brief §7 — "every week, the AI should generate situations related to Human Resources") — a scheduled job that produces a themed role-play scenario (e.g., interview, performance review, conflict resolution) not recently covered, generated fresh by Claude rather than picked from a static bank, per Principle 3 ("no generic lessons").
+Drives per-session focus and the weekly HR scenario generator (brief §7).
 
-### 3.4 Voice conversation layer (Principle 4)
+### 5.4 Voice conversation layer (Principle 4)
 
-- OpenAI Realtime API handles the live speech-to-speech loop (recommended for latency/naturalness — see `PROJECT.md` D2).
-- Session is seeded with instructions derived from the memory snapshot and today's adaptive focus, so the *voice* model doesn't need its own memory system — Claude + Postgres remain the single source of truth.
-- Pronunciation feedback: captured via transcript + confidence signals from the voice session, logged into structured memory as pronunciation mistakes.
-- **This is the highest-risk, least-proven part of the architecture** for this project (see `RISKS.md` R-01) and is deliberately scheduled after the text-based coach is solid (Phase 4), so Principle 1/2/3 memory infrastructure is validated before adding voice complexity.
+- **Primary path**: OpenAI Realtime API for live speech-to-speech, seeded with memory context from the backend.
+- **Native fallback path**: when offline or the Realtime session fails to establish, the app falls back to the **Speech framework** (on-device recognition) for input and **AVSpeechSynthesizer** for output, running against a locally cached/last-known conversational context rather than blocking the user entirely. This is a direct benefit of going native (D1) that was not available in the original Expo-based plan.
+- **AVFoundation** manages the audio session (category switching between recording and playback, interruption handling — e.g. phone calls).
+- Pronunciation feedback is captured via transcript + confidence signals and logged into structured memory as pronunciation mistakes; this still requires the Realtime path (the on-device fallback is a continuity measure, not a feature-parity replacement).
+- This remains the highest-risk, least-proven part of the architecture (see `RISKS.md` R-01) and stays scheduled after the text-based coach is solid (Phase 4).
 
-### 3.5 Progress tracking & dashboard
+### 5.5 Progress tracking & dashboard
 
-Read-only views over structured memory: streaks, vocabulary growth over time, mistakes resolved vs. recurring, topics mastered vs. to-review, level trend. No new data model beyond §5 — this is a query/visualization layer on the client.
+Read-only SwiftUI views over the local SwiftData cache (instant, offline-capable): streaks, vocabulary growth, mistakes resolved vs. recurring, topics mastered vs. to-review, level trend.
 
-## 4. Tech stack summary
+## 6. Backend & platform independence
 
-| Layer | Choice | Rationale |
+- The backend is implemented as **Supabase Edge Functions** (Deno/TypeScript) today — chosen for zero infrastructure to operate as a solo maintainer — but is treated architecturally as **"our own service"**: a versioned HTTP API that owns orchestration, AI provider calls, and sync endpoints. The iOS app is just one client of this API.
+- This is what satisfies the "backend must remain platform-agnostic" requirement: a future Web/Desktop client talks to the same API and the same Postgres data, with no iOS-specific assumptions baked into the contract. If Edge Functions ever stop being sufficient (e.g. heavier compute, longer-running jobs), the API contract allows moving to a dedicated server without touching any client.
+- All vendor API keys (Anthropic, OpenAI, Supabase service role) live only in this backend layer, never in the iOS app bundle or Keychain.
+
+## 7. Security & privacy
+
+- iOS app authenticates to the backend via Supabase Auth; session tokens are stored in the **iOS Keychain**, never `UserDefaults`.
+- SwiftData local store uses iOS Data Protection (§4); Supabase provides encryption at rest.
+- Supabase Row Level Security scoped to the authenticated user, even with one user today, to avoid rework if the trust model changes (e.g. future household/family accounts, or a Web client).
+- Conversation transcripts contain personal/professional information (HR scenarios may reference real workplace situations) — must be verified against Anthropic/OpenAI API-tier (not consumer-tier) data-usage policies, which by default exclude API traffic from model training, but this must be confirmed at implementation time, not assumed indefinitely.
+- Data export/delete flow required to honor "nothing disappears without explicit permission" as a *reversible* guarantee — deletion is a deliberate, confirmed action, propagated to both Supabase and the local SwiftData cache.
+
+## 8. Native iOS integration (D1 follow-through)
+
+Concrete uses of native frameworks, each tied to a principle or explicit user constraint rather than added for their own sake:
+
+| Framework | Use | Serves |
 |---|---|---|
-| Client framework | Expo SDK 57 + React Native + TypeScript | Reuses existing scaffold; Expo simplifies iOS builds/OTA updates for a solo maintainer |
-| Navigation | React Navigation (existing) | Already integrated |
-| Client state/data | TanStack Query (new) | Caching + offline resilience against Supabase, avoids hand-rolled fetch/loading state |
-| Backend orchestration | Supabase Edge Functions (Deno/TS) | Keeps API keys server-side; no separate server to operate |
-| Database | Supabase Postgres + `pgvector` | Managed, durable, supports both structured and semantic memory in one system |
-| Auth | Supabase Auth | Even single-user, needed for secure device access + future multi-device |
-| Reasoning/generation LLM | Anthropic Claude API | Strong reasoning, tool use, prompt caching for large recurring context (memory snapshot) |
-| Voice | OpenAI Realtime API | Most mature low-latency voice-to-voice option available today |
-| Push/reminders | Expo Notifications | Supports streak/habit reinforcement (Principle 2, daily use over years) |
+| Speech | On-device speech recognition, offline voice fallback | Principle 4, continuity |
+| AVFoundation | Audio session/recording management | Voice layer reliability |
+| AVSpeechSynthesizer | Local TTS fallback when offline/Realtime unavailable | Continuity, cost control (D4) |
+| WidgetKit | Home-screen streak/progress widget | Principle 2 reinforcement, "premium feel" (Principle 6) |
+| UserNotifications | Native daily reminder/streak notifications | Habit formation over years |
+| Accessibility (VoiceOver, Dynamic Type) | Inclusive, polished UX | Principle 6 (premium = accessible) |
 
-## 5. Data model (initial sketch — refined in Phase 1)
+## 9. Data model
+
+### 9.1 Supabase Postgres (source of truth)
 
 ```sql
 create table users (
@@ -140,9 +191,10 @@ create table sessions (
   mode text check (mode in ('text', 'voice')),
   category text check (category in ('business', 'daily')),
   topic text,
-  transcript_raw text,             -- retained per "never forget without permission"
-  summary text,                    -- Claude-generated, used for future context
-  summary_embedding vector(1536)   -- pgvector, semantic recall
+  transcript_raw text,
+  summary text,
+  summary_embedding vector(1536),
+  updated_at timestamptz not null default now()
 );
 
 create table vocabulary_items (
@@ -153,28 +205,31 @@ create table vocabulary_items (
   first_seen_session_id uuid references sessions(id),
   times_used int not null default 0,
   mastery_level text check (mastery_level in ('introduced','practicing','mastered')),
-  last_practiced_at timestamptz
+  last_practiced_at timestamptz,
+  updated_at timestamptz not null default now()
 );
 
 create table mistakes (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id),
   type text check (type in ('grammar','pronunciation','vocabulary','fluency')),
-  description text not null,        -- e.g. "confuses since/for"
+  description text not null,
   example text,
   correction text,
   occurrences int not null default 1,
   last_seen_session_id uuid references sessions(id),
-  resolved boolean not null default false
+  resolved boolean not null default false,
+  updated_at timestamptz not null default now()
 );
 
 create table topics (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id),
-  name text not null,               -- e.g. "Performance Reviews"
+  name text not null,
   category text check (category in ('business','daily')),
   status text check (status in ('not_started','introduced','practicing','mastered')),
-  last_covered_session_id uuid references sessions(id)
+  last_covered_session_id uuid references sessions(id),
+  updated_at timestamptz not null default now()
 );
 
 create table goals (
@@ -182,7 +237,8 @@ create table goals (
   user_id uuid references users(id),
   description text not null,
   target_date date,
-  achieved boolean not null default false
+  achieved boolean not null default false,
+  updated_at timestamptz not null default now()
 );
 
 create table achievements (
@@ -196,29 +252,59 @@ create table streaks (
   user_id uuid primary key references users(id),
   current_streak_days int not null default 0,
   longest_streak_days int not null default 0,
-  last_session_date date
+  last_session_date date,
+  updated_at timestamptz not null default now()
 );
 ```
 
-This schema is deliberately normalized and explainable (not a black-box vector-only store) so that, per Principle 1, "remembering everything" is auditable — Julia can, in principle, query her own learning history directly.
+`updated_at` columns are added throughout (vs. the original draft) specifically to support the sync conflict-resolution rule in §4 — every syncable table needs a server-authoritative timestamp.
 
-## 6. Security & privacy
+### 9.2 SwiftData (local cache, illustrative)
 
-Even for a single-user personal app:
-- No API keys (Anthropic, OpenAI, Supabase service role) ever ship in the client bundle — Edge Functions only.
-- Supabase Row Level Security scoped to the authenticated user, even with one user, to avoid rework if the trust model ever changes.
-- Conversation transcripts contain personal/professional information (HR scenarios may reference real workplace situations) — treated as sensitive data at rest (Supabase encryption at rest) and never used for third-party model training (must be confirmed against Anthropic/OpenAI data-usage policies for API — not consumer — tiers, which by default do not train on API data).
-- Data export/delete flow required to honor "nothing disappears without explicit permission" as a *reversible* guarantee — deletion must be a deliberate, confirmed user action, not automatic.
+```swift
+@Model
+final class CachedSession {
+    @Attribute(.unique) var localID: UUID
+    var remoteID: UUID?
+    var startedAt: Date
+    var mode: String        // "text" | "voice"
+    var category: String    // "business" | "daily"
+    var topic: String?
+    var summary: String?
+    var syncStatus: SyncStatus
+}
 
-## 7. Observability
+enum SyncStatus: String, Codable {
+    case synced, pendingUpload, pendingExtraction
+}
+```
 
-- Token usage and estimated cost logged per session (Claude + Realtime API), surfaced in a simple internal metrics view — supports revisiting D4 (budget) later with real data instead of guesses.
-- Basic error tracking (e.g., Sentry free tier) given this app will run unattended for years and issues must surface, not silently degrade memory capture.
+Local models intentionally omit `transcript_raw` and embeddings by default (kept server-side only) to avoid bloating the on-device store — full transcripts sync up but are not required to sync back down for the cache to be useful; only summaries and structured facts round-trip.
 
-## 8. Open technical decisions
+## 10. Tech stack summary
+
+| Layer | Choice | Rationale |
+|---|---|---|
+| Client platform | Swift 6, SwiftUI, iOS 18+ | Confirmed (D1) — native performance, system integration, longevity |
+| Architecture | MVVM + Clean Architecture | Confirmed (D1) — testable, keeps AI providers swappable (D2) |
+| Local persistence | SwiftData | Confirmed (D3) — modern, native, offline cache |
+| Backend | Supabase Edge Functions (Deno/TS) | Managed, low-ops, treated as an owned/versioned API for platform independence |
+| Database | Supabase Postgres + `pgvector` | Structured + semantic memory in one system, source of truth |
+| Auth | Supabase Auth + iOS Keychain | Secure session storage, ready for future multi-device/multi-client |
+| Reasoning/generation LLM | Anthropic Claude API | Confirmed (D2) — primary conversation/content engine |
+| Voice (primary) | OpenAI Realtime API | Confirmed (D2) — most mature low-latency voice-to-voice option |
+| Voice (fallback) | Speech framework + AVSpeechSynthesizer | Native, offline-capable, cost-conscious (D4) |
+| Notifications/widgets | UserNotifications, WidgetKit | Native habit reinforcement, premium feel |
+
+## 11. Observability
+
+- Token usage/cost logged per session (Claude + Realtime) in the backend, surfaced in a simple internal metrics view — directly supports D4's "avoid unnecessary API calls" mandate with real data instead of guesses.
+- Native crash/diagnostics via Apple's own tooling (`OSLog`, `MetricKit`) as the first-choice option given the native platform, before reaching for a third-party SDK.
+
+## 12. Open technical decisions
 
 Tracked in `RISKS.md` and `TASKS.md`, not resolved here:
-- Final choice/validation of OpenAI Realtime API vs. alternatives (see `RISKS.md` R-01).
-- iOS distribution mechanism for years-long personal use (see `RISKS.md` R-07).
+- Exact background-sync scheduling (`BGTaskScheduler` intervals) balancing freshness vs. battery/cost.
 - CEFR-based onboarding assessment design.
 - Data retention window for raw transcripts (kept forever vs. summarized-then-pruned after N months).
+- iOS distribution mechanism for years-long personal use (see `RISKS.md` R-07).

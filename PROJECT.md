@@ -4,7 +4,7 @@
 Source of truth for requirements: `PROJECT_BRIEF.md` (v1.0, Draft, Owner: Julia).
 This document translates that brief into an actionable product/engineering vision. It is a living document — when new requirements are added, this file is updated, not duplicated.
 
-Working codename for this document set: **"Coach"** (no final product name has been chosen yet — see [Open Decision D1](#open-decisions)).
+Working codename for this document set: **"Coach"** (no final product name has been chosen yet — see [Open items](#9-gaps-and-open-items)).
 
 ---
 
@@ -67,28 +67,31 @@ The AI is a mentor, not a school. Personality: patient, professional, friendly, 
 - Not a general-subject tutor (no math, no test prep unrelated to English).
 - Not a gamification-first app — engagement mechanics only in service of Principle 5 (quality over quantity), never as filler content.
 - Not tied to any single AI vendor's brand identity or UI conventions — original visual design only (per user instructions).
+- Not cross-platform in v1 — iOS-only by deliberate choice (see §8, D1), not a limitation to be worked around.
 
-## 8. Key architecture decisions made in this pass
+## 8. Confirmed architecture decisions
 
-Because several implementation-critical decisions were left open in the brief and the user was unavailable to confirm them synchronously, the following defaults were adopted as a tech lead would on a solo project — each is reversible and documented with rationale in `ARCHITECTURE.md` / `RISKS.md`:
+The following decisions were open after the initial analysis pass and have since been **confirmed directly by Julia**. They now govern `ARCHITECTURE.md`, `ROADMAP.md`, and `TASKS.md` — they are no longer defaults subject to silent revision.
 
-- **D1 — Codebase reuse**: The existing `elo-app` repository (a Expo/React Native/TypeScript fitness-social app, unrelated in *domain* to this brief) is **pivoted**: its technical stack (Expo SDK 57, React Navigation, TypeScript) is kept as the foundation; all fitness-domain code (`src/screens`, `src/data/mockData.ts`, fitness types, README) is treated as legacy scaffolding to be removed in Phase 1. Product name is still undecided — see Open Decisions.
-- **D2 — AI engine**: Hybrid. **Anthropic Claude** for reasoning, memory management, lesson/scenario generation, and mistake analysis (text-first, tool-using backend). **OpenAI Realtime API** for the low-latency spoken conversation loop, since it is currently the most mature option for natural voice-to-voice interaction. Claude-generated context (memory, lesson plan, corrections) is injected into the Realtime session as instructions/context rather than the Realtime model owning long-term memory itself.
-- **D3 — Memory storage**: **Supabase (managed Postgres)** as source of truth, using `pgvector` for semantic memory (conversation embeddings) alongside structured relational tables for precise tracking (vocabulary, mistakes, sessions, goals). Chosen over local-only SQLite because "remember everything for years" implies durability, backup, and future multi-device continuity beyond what a single iPhone can guarantee.
-- **D4 — Budget**: No hard cost ceiling assumed; architecture optimizes for experience quality (voice latency, model quality) over minimizing API spend, since this is a daily-use, multi-year personal tool. Cost is still tracked (see `ARCHITECTURE.md` §Observability) so it can be revisited if it becomes a real constraint.
+- **D1 — Client platform & codebase**: The application is built as a **fresh native iOS app** using **Swift 6 + SwiftUI, targeting iOS 18+**, with an **MVVM + Clean Architecture** structure. The prior Expo/React Native scaffold that existed in this repository is a **separate, unrelated project** and does not constrain or seed the new architecture in any way — it is removed, not migrated, at the start of implementation. The repository is reorganized from zero around the native project.
+- **D2 — AI engine**: Hybrid, decoupled by design. **Anthropic Claude** is the primary engine for conversation, explanations, corrections, and content/lesson generation. **OpenAI Realtime API** handles speech-to-text/text-to-speech for live voice conversation. The architecture must abstract both behind Domain-layer protocols (not vendor SDKs called directly from feature code) specifically so either provider can be replaced later without touching business logic — see `ARCHITECTURE.md` §5.
+- **D3 — Memory & persistence**: **Supabase (Postgres)** is the authoritative backend and single source of truth for all long-term memory (history, progress, vocabulary, mistakes, statistics). **SwiftData** provides local persistence on-device for caching and offline use. The app synchronizes automatically whenever connectivity is available; SwiftData is a durable cache and offline queue, never a competing source of truth.
+- **D4 — Budget posture**: Moderate. Willing to pay for a high-quality experience, but the architecture must actively avoid unnecessary API calls (caching, batching, on-device alternatives where sensible) and must keep providers swappable so cheaper or better alternatives can be adopted later without a rewrite.
 
-**These are working defaults, not final decisions.** Julia should confirm or override D1–D4 before Phase 1 implementation begins; each is tracked as a task in `TASKS.md` (T0-01 to T0-04).
+Additional constraints set alongside these decisions:
+- Use native iOS frameworks wherever it makes sense: **Speech framework** (speech recognition), **AVFoundation** (audio), **AVSpeechSynthesizer** (local TTS fallback), **WidgetKit** (widgets), native **UserNotifications**, and iOS accessibility features.
+- The **backend must remain platform-agnostic** — iOS is the first and only client in v1, but the backend/data model must not assume an iOS-only client, so a future Web/Desktop client can be built against the same backend and the same data without duplication or migration.
 
-## 9. Gaps and contradictions identified in the brief
+## 9. Gaps and open items
 
-Per the analysis mandate, the following were found to be **underspecified** (not contradictory, but decision-blocking) and are tracked as open items rather than silently assumed:
+Per the analysis mandate, the following remain **underspecified** and are tracked as open items rather than silently assumed:
 
 - No initial-assessment / onboarding flow defined — "no generic lessons" conflicts with a true cold start (day 1, zero memory). Needs a first-session calibration flow (level check, goals interview) that itself becomes the seed of long-term memory.
 - No stated CEFR level or starting proficiency for Julia.
 - No voice/accent preference (American vs. British English) or speech-recognition tolerance for Portuguese-accented English.
 - No retention/deletion policy detail beyond "nothing disappears without explicit permission" — needs a concrete data export/delete UX.
-- No distribution mechanism specified for a personal iOS app used for years (Apple Developer Program + TestFlight has real constraints — see `RISKS.md` R-07).
-- No multi-device / device-loss continuity requirement stated, despite an implicit "years of history" expectation.
+- No distribution mechanism confirmed for a personal iOS app used for years (Apple Developer Program + TestFlight has real constraints — see `RISKS.md` R-07).
+- No conflict-resolution policy detail for the SwiftData ↔ Supabase sync beyond "sync automatically" — needs an explicit strategy (see `ARCHITECTURE.md` §4).
 - No product name.
 
 These are captured as Phase 0 tasks in `TASKS.md` and as risks in `RISKS.md`.
