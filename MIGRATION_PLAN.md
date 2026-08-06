@@ -100,7 +100,11 @@ Per your instruction to check for anything generic and useful "mesmo não perten
 
 Sequenced to fail safe — each step is independently revertible, and destructive steps come only after non-destructive ones are verified:
 
-1. **Checkpoint.** Tag the current commit before any change (`git tag pre-cleanup-2026-08-06`, pushed to origin) — a named, permanent recovery point independent of reflog. Zero risk, purely additive.
+1. **Checkpoint.** ~~Tag the current commit before any change, pushed to origin.~~ **Executed with a substitution, documented here:** an annotated tag (`legacy-expo-final`) was created locally, but `git push origin legacy-expo-final` was rejected by the environment's git proxy with **HTTP 403** (an organization policy restriction — this session's push credentials are scoped to the designated branch ref only, not to creating new tag refs on the remote). Per the proxy's own guidance ("do not retry or route around it — report the blocked host"), this was not retried or worked around; it was reported to Julia, who approved the following as the **official checkpoint** in place of a remote tag:
+   - **Commit `84c9101`** ("Add MIGRATION_PLAN.md...") — already pushed to `origin/claude/project-analysis-planning-bmwq6l`, permanently reachable by hash as long as history isn't rewritten (it won't be).
+   - **The repository's default branch, `claude/expo-react-native-project-uf82dc`** (§1.1) — an already-pushed, untouched, independent copy of the pre-cleanup project.
+
+   The local-only tag was deleted (`git tag -d legacy-expo-final`) rather than left behind, since it wasn't pushed and would otherwise be a misleading artifact — the two mechanisms above are the sole official checkpoint of record.
 2. **Adapt infrastructure files** (non-destructive — these are edits, not deletions, and every one has a working previous state to fall back to mid-review): `.gitignore`, `AGENTS.md`, `.claude/settings.json`, and the `LICENSE` decision (§5.2, pending your input).
 3. **Introduce `.editorconfig`** (purely additive).
 4. **Commit step 2–3 as one logical commit** ("Adapt repository infrastructure for native iOS project") — reviewable independently of the removal step that follows.
@@ -297,7 +301,7 @@ No application code or Xcode project files are created by this cleanup — that 
 
 | Step | Risk | Mitigation |
 |---|---|---|
-| 1. Tag checkpoint | None (purely additive) | — |
+| 1. Checkpoint | Remote tag push blocked (403, environment policy) | Realized risk, not just a theoretical one — resolved by substituting commit `84c9101` + the default branch as the official checkpoint (approved by Julia); no cleanup step proceeded until this was settled |
 | 2–4. Adapt infra files | Low: a typo in `.gitignore` or `AGENTS.md` content | Reviewed inline in this plan (§5) before being written; small, easily diffed files |
 | 5–6. Remove legacy code | Medium *in general* for "delete a lot of files at once", but low *here* specifically | Every removed file was individually classified in `REPOSITORY_AUDIT.md` before this plan existed; nothing is removed on a guess. Split into its own commit (step 6), independently revertible from the infra changes |
 | 7. Verify | Low: a stray reference to a removed path could be missed | Explicit grep-for-broken-references step before pushing |
@@ -308,13 +312,12 @@ No step in this plan touches anything outside this git repository (no deployed b
 
 ## 10. Rollback strategy
 
-Three independent layers, from fastest to most fundamental:
+**Revised in execution** (remote tag push was blocked, §4 step 1) — two official layers, both already in place with no further action needed:
 
-1. **`git revert`** the cleanup commit(s) from step 6 (and step 4, if needed) on the working branch — since history is never rewritten, this is a clean, standard operation that restores every removed file exactly as it was, with a new commit recording the reversal (no force-push required).
-2. **The tag from step 1** (`pre-cleanup-2026-08-06`) — a permanent, named reference to the exact pre-cleanup state, independent of commit-message-based reverts, in case more than the last commit needs to be unwound.
-3. **The repository's default branch** (`claude/expo-react-native-project-uf82dc`, §1.1) — an entirely independent, untouched copy of the old project that this plan never modifies. Even in a worst-case scenario on the working branch, this remains a complete fallback, unaffected by anything in this plan.
+1. **`git checkout 84c9101`** (or `git revert` the cleanup commit(s) that follow it) on the working branch — since history is never rewritten, `84c9101` remains permanently reachable by hash, and reverting the cleanup commits restores every removed file exactly as it was, with a new commit recording the reversal (no force-push required).
+2. **The repository's default branch** (`claude/expo-react-native-project-uf82dc`, §1.1) — an entirely independent, untouched, already-pushed copy of the old project that this plan never modifies. Even in a worst-case scenario on the working branch, this remains a complete fallback, unaffected by anything in this plan.
 
-Rollback is git-only and low-stakes: nothing has been deployed, distributed, or installed anywhere outside this repository at this stage of the project.
+Both mechanisms were confirmed sufficient by Julia in place of a remote tag. Rollback is git-only and low-stakes: nothing has been deployed, distributed, or installed anywhere outside this repository at this stage of the project.
 
 ---
 
