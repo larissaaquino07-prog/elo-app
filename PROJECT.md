@@ -96,9 +96,22 @@ Per the analysis mandate, the following remain **underspecified** and are tracke
 
 These are captured as Phase 0 tasks in `TASKS.md` and as risks in `RISKS.md`.
 
-## 10. Related documents
+## 10. Architecture status
+
+The technical architecture underwent a full Principal-Architect-level review on **2026-08-06**, covering Clean Architecture/SOLID compliance, scalability to a multi-year/multi-device horizon, persistence, sync, AI provider independence, the memory engine, voice, security, performance, and testability. All required changes from that review are incorporated into `ARCHITECTURE.md`; every decision and its rationale is recorded in `ARCHITECTURE_DECISIONS.md` (ADR-001 through ADR-013). **The architecture is frozen** — implementation (Phase 0 in `ROADMAP.md`) can proceed without a further architecture gate, unless a future decision supersedes one of the recorded ADRs.
+
+## 11. Candidate future features (post-v1, not yet scheduled beyond a placeholder)
+
+Identified during the architecture review as valuable and consistent with the Core Principles, but deliberately not pulled into the near-term backlog to respect Principle 5 (quality over quantity). Tracked as low-priority Phase 5/6 items in `TASKS.md`:
+
+- Proactive event-prep coaching ("I have an interview next Tuesday" → the coach adapts upcoming sessions toward it) — the adaptive scheduler already reserves an input for this (`ARCHITECTURE.md` §5.3) so it can be added without a redesign.
+- Streak grace period, post-session recap, saved phrases/bookmarks, practice-history heatmap — small, high-warmth UX additions common to durable daily-habit apps, absent from the original brief.
+- A future macOS client reusing the same `CoachKit` Domain/Data package (`ARCHITECTURE.md` §6, ADR-013).
+
+## 12. Related documents
 
 - `ROADMAP.md` — phased delivery plan
 - `TASKS.md` — prioritized backlog
 - `ARCHITECTURE.md` — technical architecture and data model
+- `ARCHITECTURE_DECISIONS.md` — architecture decision records (ADRs) and review approval checklist
 - `RISKS.md` — technical risks and mitigations

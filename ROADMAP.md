@@ -2,7 +2,7 @@
 
 Phased delivery plan. Durations are relative working sessions for a solo developer using Claude Code, not corporate-team estimates — treat them as sequencing guidance, not deadlines. Each phase has an explicit exit criteria; a phase is not "done" until its criteria are met, per Principle 5 (quality over quantity).
 
-Implements the confirmed stack: native iOS (Swift 6, SwiftUI, iOS 18+, MVVM + Clean Architecture, SwiftData + Supabase) — see `ARCHITECTURE.md`.
+Implements the confirmed stack: native iOS (Swift 6, SwiftUI, iOS 18+, MVVM + Clean Architecture, SwiftData + Supabase) — see `ARCHITECTURE.md`. **The architecture was formally reviewed and frozen on 2026-08-06** (`ARCHITECTURE_DECISIONS.md`); the plan below already reflects that review's required and recommended changes.
 
 ---
 
@@ -10,30 +10,34 @@ Implements the confirmed stack: native iOS (Swift 6, SwiftUI, iOS 18+, MVVM + Cl
 **Goal:** Stand up the real, native project and resolve everything that would otherwise stall Phase 1.
 
 - Remove the existing Expo/React Native scaffold from the repository — it belonged to an unrelated project and is not migrated.
-- Create a fresh native Xcode project (Swift 6, SwiftUI, iOS 18+ deployment target).
-- Set up the MVVM + Clean Architecture module structure (Presentation / Domain / Data).
-- Provision Supabase project (Postgres + `pgvector` + Auth + Edge Functions) and Anthropic + OpenAI API accounts.
-- Define the Domain-layer provider protocols (`ConversationEngine`, `VoiceEngine`, `MemoryExtractionEngine`) so D2's decoupling requirement is structural from the first commit, not retrofitted.
-- Define the SwiftData local schema and the sync/conflict-resolution strategy (`ARCHITECTURE.md` §4).
+- Create a fresh native Xcode project (Swift 6, SwiftUI, iOS 18+ deployment target), with Domain + Data packaged as a separate Swift Package (`CoachKit`) from the start.
+- Set up the MVVM + Clean Architecture module structure (Presentation / Domain / Data), including Repository protocols (not just Engine protocols) so Presentation never touches SwiftData directly.
+- Provision Supabase project (Postgres + `pgvector` + Auth + Edge Functions + Storage) and Anthropic + OpenAI API accounts.
+- Define the Domain-layer provider protocols (`ConversationEngine`, `VoiceEngine`, `MemoryExtractionEngine`) so D2's decoupling requirement is structural from the first commit; validate with a minimal second `ConversationEngine` adapter.
+- Define the SwiftData local schema and the sync/conflict-resolution strategy, including idempotent upserts and per-device sync cursors (`ARCHITECTURE.md` §4).
+- Set up CI (GitHub Actions) running unit tests on every push.
 - Choose product name and original visual identity direction.
 - Design the onboarding/first-session flow (CEFR-style level check, goals interview) that seeds long-term memory from zero.
 - Decide iOS distribution mechanism (Apple Developer Program + TestFlight vs. alternatives) — see `RISKS.md` R-07.
 
-**Exit criteria:** Native Xcode project builds and runs on-device with the MVVM+Clean Architecture skeleton in place, Supabase + AI accounts provisioned, product name and onboarding flow spec finalized, distribution mechanism chosen.
+**Exit criteria:** Native Xcode project + `CoachKit` package build and run on-device with the MVVM+Clean Architecture skeleton in place (Repository and Engine protocols both present), Supabase + AI accounts provisioned, CI green, product name and onboarding flow spec finalized, distribution mechanism chosen.
 
 ---
 
 ## Phase 1 — Core Text Coach (MVP)
 **Goal:** A working conversational English coach, text-only, that already remembers — offline-capable from day one via SwiftData.
 
-- Implement the Supabase Postgres schema (`ARCHITECTURE.md` §9.1).
-- Implement matching SwiftData local models + `SyncCoordinator` (upload pending writes, pull remote changes, apply conflict rules).
-- Supabase Auth integration with Keychain-backed session storage.
-- Onboarding flow (SwiftUI) → creates the initial user profile, goals, and topics both locally and remotely.
+- Implement the Supabase Postgres schema (`ARCHITECTURE.md` §9.1), including indexes, `learner_profile`, `device_sync_state`, and `streaks` as a derived view.
+- Implement matching SwiftData local models + `SyncCoordinator` (idempotent upserts, per-device watermark pull, conflict rules).
+- Implement the Repository layer (`SessionRepository`, `MemoryRepository`) + mappers so Presentation never touches SwiftData or Supabase directly.
+- Supabase Auth integration with Keychain-backed session storage; app-level Face ID/Touch ID lock.
+- Onboarding flow (SwiftUI) → creates the initial user profile, goals, topics, and seeds `learner_profile`, both locally and remotely.
 - Session Orchestrator (backend) + `ClaudeConversationEngine` adapter.
-- Native SwiftUI text chat UI (MVVM), reading/writing through the Domain layer only.
-- Memory Extraction Job (server-side, Claude) → vocabulary, mistakes, topics, summary + embedding.
-- Basic progress view (streak, session count, topics touched) reading from the local SwiftData cache.
+- Native SwiftUI text chat UI (MVVM), reading/writing through the Repository/Use Case layer only.
+- Memory Extraction Job (server-side, Claude) → vocabulary, mistakes, topics, summary + embedding; transcript uploaded to object storage, never stored inline.
+- Learner Profile Updater (incremental rollup summary, `ARCHITECTURE.md` §5.2) — a strong "knows me" baseline before any topic-specific retrieval runs.
+- Weekly backup export job (Supabase + a secondary, user-owned location).
+- Basic progress view (streak — derived from session history, not a synced field — session count, topics touched) via the Repository layer.
 
 **Exit criteria:** Julia can have a real text conversation, close the app, come back the next day (with or without connectivity in between), and the coach visibly remembers the prior session without voice yet.
 
