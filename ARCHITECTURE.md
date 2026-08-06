@@ -2,6 +2,8 @@
 
 Technical architecture for the personal AI English coach. Complements `PROJECT.md` (why) with the how. Implements confirmed decisions D1–D4 (`PROJECT.md` §8) plus the improvements approved in the 2026-08-06 Architecture Review — see `ARCHITECTURE_DECISIONS.md` for the full rationale behind every decision referenced here as `ADR-xxx`.
 
+This document owns **structure and design** (layers, data model, sync mechanics, subsystem responsibilities). Four companion specifications own their own domains and are the canonical source where referenced: `PROMPT_ENGINE.md` (AI behavior/prompting), `LEARNING_ENGINE.md` (pedagogical formulas), `DESIGN_SYSTEM.md` (visual identity), `NON_FUNCTIONAL_REQUIREMENTS.md` (measurable targets), `OBSERVABILITY.md` (monitoring detail). Where this document previously stated a number or formula now owned elsewhere, it points there instead of repeating it, to avoid two sources of truth.
+
 **Status: Frozen for Phase 0 implementation start**, pending nothing further — all required changes from the review are incorporated below.
 
 ---
@@ -176,7 +178,7 @@ Retrieval is **hybrid**, not pure vector search: filter by category/topic/recenc
 
 ### 5.3 Adaptive learning engine (Principle 2 & 3)
 
-Unchanged scoring approach; `GetAdaptiveFocusUseCase` now also accepts an optional **upcoming real-world event** input (e.g., "interview next Tuesday") even though no UI surfaces it in Phase 0–3 — reserving this parameter now avoids a breaking Domain change when the proactive-event-prep feature (§11) is built later.
+Unchanged scoring approach; `GetAdaptiveFocusUseCase` now also accepts an optional **upcoming real-world event** input (e.g., "interview next Tuesday") even though no UI surfaces it in Phase 0–3 — reserving this parameter now avoids a breaking Domain change when the proactive-event-prep feature (`PROJECT.md` §11) is built later.
 
 ```
 priority(topic) = w1 * recency_decay(last_seen)
@@ -187,12 +189,14 @@ priority(topic) = w1 * recency_decay(last_seen)
                 - w6 * mastery_level(topic)
 ```
 
+**Canonical definitions**: `recency_decay`, `error_frequency`, and `mastery_level` are defined precisely in `LEARNING_ENGINE.md` §3, which also owns session-level difficulty and level progression (§4 there) — this section is the orchestration point, not the source of truth for those formulas.
+
 ### 5.4 Voice conversation layer (Principle 4)
 
 - **Primary**: OpenAI Realtime API, seeded with `learner_profile` + adaptive focus.
 - **Fallback**: Speech framework + `AVSpeechSynthesizer`, native and offline-capable.
 - **New from the review:**
-  - Explicit **latency budget** as an acceptance criterion, not just a vibe: target first-audio-response under ~800ms perceived round-trip for the Realtime path; text first-token under ~2s.
+  - Explicit **latency budget** as an acceptance criterion, not just a vibe — exact figures are canonical in `NON_FUNCTIONAL_REQUIREMENTS.md` §1/§9 (voice round-trip and text first-token targets), not restated here to avoid two sources of truth for the same number.
   - **Reconnection before fallback**: a dropped Realtime session retries briefly (short backoff) before switching to the native path, so a momentary network blip doesn't downgrade a whole session unnecessarily.
   - **Interruption handling**: `AVAudioSession` interruption notifications (phone call, Siri, etc.) pause the session and persist whatever partial transcript exists immediately — a session interrupted mid-sentence must not lose what was already said, per Principle 1 applied to live sessions, not just completed ones.
   - **Voice consistency**: one fixed voice/persona is selected and reused across all sessions (not randomized per session) — consistency reads as "the same coach", which matters for the "knows me personally" feel (Principle 1/3).
@@ -387,7 +391,7 @@ Raw transcripts move from an inline `sessions.transcript_raw` column to **Supaba
 
 ## 11. Scalability at the brief's own stated horizon
 
-The brief explicitly targets years of daily use; this section validates the design against that, not against typical MVP scale:
+The brief explicitly targets years of daily use; this section validates the *design* against that qualitatively. Numeric targets (query latency at volume, context assembly time) are canonical in `NON_FUNCTIONAL_REQUIREMENTS.md` §8, not restated here:
 
 | Scenario | Risk without mitigation | Mitigation already in this design |
 |---|---|---|
@@ -405,6 +409,7 @@ The brief explicitly targets years of daily use; this section validates the desi
 - Data layer integration tests use an in-memory `ModelContainer` (SwiftData's built-in test configuration) rather than mocking SwiftData itself.
 - Critical flows (onboarding, start/end a session, voice fallback trigger) get XCUITest coverage; exhaustive UI coverage is not a goal (Principle 5 applies to the test suite too).
 - CI (GitHub Actions, macOS runner) runs the unit test suite on every push — a concrete continuity measure against R-04 (single-maintainer risk).
+- Minimum coverage numbers per layer are canonical in `NON_FUNCTIONAL_REQUIREMENTS.md` §11, enforced as a CI gate once a baseline exists.
 
 ## 13. Performance
 
@@ -415,9 +420,7 @@ The brief explicitly targets years of daily use; this section validates the desi
 
 ## 14. Observability
 
-- Token usage/cost logged per session (Claude + Realtime) in the backend, supporting D4's "avoid unnecessary calls" mandate with real data.
-- `OSLog` + `MetricKit` as the first-choice native diagnostics tooling, before reaching for a third-party SDK.
-- Latency budgets from §5.4 tracked as a metric, not just a design intent, so regressions are visible.
+Tooling choice (kept here as an architectural decision): `OSLog` + `MetricKit` as the first-choice native diagnostics stack, before reaching for a third-party SDK — no analytics/crash SDK dependency added. The full specification (log categories, metrics, dashboards, retention, learning-health indicators) is canonical in `OBSERVABILITY.md`, not duplicated here.
 
 ## 15. Open technical decisions
 

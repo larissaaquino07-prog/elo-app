@@ -83,15 +83,15 @@ Implements the confirmed stack: native iOS (Swift 6, SwiftUI, iOS 18+, MVVM + Cl
 ## Phase 5 — Premium Polish
 **Goal:** Principle 6 — everything feels premium, and native platform capabilities are put to use, not left on the table.
 
-- Animation/transition pass across all SwiftUI screens.
-- Performance pass (launch time, streaming response latency perception, offline resilience, background sync efficiency).
-- Final original visual identity implementation.
+- Animation/transition pass across all SwiftUI screens, per `DESIGN_SYSTEM.md` §6.
+- Performance pass against the numeric targets in `NON_FUNCTIONAL_REQUIREMENTS.md` §1–3 (launch time, latency perception, offline resilience, background sync efficiency).
+- Implement the full `DESIGN_SYSTEM.md` token set and component library (colors, typography, spacing, motion, haptics).
 - WidgetKit home-screen widget (streak/progress).
 - Native `UserNotifications` tuned for motivation without nagging.
-- Accessibility pass (VoiceOver, Dynamic Type).
+- Accessibility pass against `DESIGN_SYSTEM.md` §11 / `NON_FUNCTIONAL_REQUIREMENTS.md` §7.
 - Data export/delete flow (honors "nothing disappears without explicit permission" as a reversible action, across both Supabase and SwiftData).
 
-**Exit criteria:** Daily use feels effortless and polished end-to-end; no rough edges in core loops (start session, speak, review progress); app is fully usable with VoiceOver.
+**Exit criteria:** Daily use feels effortless and polished end-to-end, meeting `NON_FUNCTIONAL_REQUIREMENTS.md` targets; no rough edges in core loops (start session, speak, review progress); app is fully usable with VoiceOver.
 
 ---
 
@@ -102,6 +102,7 @@ Implements the confirmed stack: native iOS (Swift 6, SwiftUI, iOS 18+, MVVM + Cl
 - Model upgrades (Claude/OpenAI model version migrations) without losing continuity — enabled structurally by the Domain-layer engine protocols from Phase 0.
 - Data retention/archival strategy maturation (raw transcript pruning policy, backups).
 - Periodic evaluation of whether the backend's platform-agnostic contract still holds, in case a Web/Desktop client is ever pursued.
+- Ongoing review of the learning-health indicators in `OBSERVABILITY.md` §9 (Fluency/Confidence trend, weak-topic resolution rate) — a flat trend despite consistent use is a cue to revisit `LEARNING_ENGINE.md`/`PROMPT_ENGINE.md`, not just to keep shipping features.
 - Recurring UX refinement based on real multi-month usage patterns.
 
 **Exit criteria:** N/A — this phase does not close; it is the steady state the rest of the roadmap builds toward.

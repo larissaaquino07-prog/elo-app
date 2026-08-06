@@ -195,6 +195,48 @@ Format per decision: ID, Date, Problem, Alternatives Considered, Decision, Justi
 
 ---
 
+## ADR-014 — Spaced repetition: SM-2-inspired algorithm, not a custom ML scheduler
+
+**Date:** 2026-08-06
+**Problem:** The Memory/Learning Engine needs a concrete algorithm to decide when vocabulary and mistakes come up for review (`LEARNING_ENGINE.md` §2).
+**Alternatives considered:**
+1. A custom ML-based scheduler (e.g., a learned model predicting optimal review timing).
+2. A simplified SM-2 (SuperMemo 2) style algorithm — ease factor, interval, repetitions, updated from a quality score per exposure.
+**Decision:** Option 2.
+**Justification:** SM-2 is well-understood, cheap to compute, easy to reason about and debug, and proven at exactly this kind of task across decades of spaced-repetition tools. A learned scheduler needs training data this single-user app will never have enough of to outperform SM-2, and would be materially harder to maintain solo (`RISKS.md` R-04).
+**Consequences:** Slightly less theoretically optimal than a fully personalized ML scheduler; judged an acceptable trade for simplicity and maintainability.
+**Future impacts:** If usage data ever suggests SM-2's defaults are miscalibrated for this specific learner, the ease-factor formula's constants are tunable without a scheduler redesign.
+
+---
+
+## ADR-015 — Product analytics: in-house Supabase table, not a third-party SDK
+
+**Date:** 2026-08-06
+**Problem:** The app needs basic usage visibility (is it being used as designed) without adding unnecessary vendor surface or content-leak risk given HR-sensitive conversation context.
+**Alternatives considered:**
+1. A third-party analytics SDK (Firebase Analytics, Amplitude, Mixpanel, etc.).
+2. A lightweight in-house `usage_events` table in the already-provisioned Supabase backend.
+**Decision:** Option 2.
+**Justification:** At single-user scale, a third-party SDK's benefit (dashboards, cohort analysis, cross-app benchmarking) is irrelevant, while its cost (new vendor dependency, new data-handling surface for arguably sensitive usage patterns, additional binary size/attack surface) is not. Supabase already holds the data; a small table achieves the same goal with less risk (`OBSERVABILITY.md` §1/§4).
+**Consequences:** No off-the-shelf analytics dashboard UI; a minimal SQL view or debug screen (`OBSERVABILITY.md` §10) substitutes.
+**Future impacts:** None negative; revisit only if this ever becomes a multi-user product (not a current goal, `PROJECT.md` §7).
+
+---
+
+## ADR-016 — Native `TabView`/`NavigationStack` instead of custom-built navigation components
+
+**Date:** 2026-08-06
+**Problem:** The discontinued Expo/React Native prototype (ADR-001) used a custom-built tab bar (blur effects, manual icon/active-state handling) because Expo/React Navigation doesn't give truly native tab bar behavior for free. The native rewrite needs a navigation approach decided explicitly rather than defaulted into.
+**Alternatives considered:**
+1. Replicate a custom-built tab bar/navigation stack in SwiftUI, matching the old prototype's bespoke look.
+2. Use SwiftUI's native `TabView` and `NavigationStack` directly, styled via the `DESIGN_SYSTEM.md` token set but not structurally custom-built.
+**Decision:** Option 2.
+**Justification:** On native iOS, `TabView`/`NavigationStack` already provide correct accessibility (VoiceOver, Dynamic Type), platform-convention behavior, and automatic adaptation across iOS versions — a custom component would have to reimplement all of that for no functional gain, at ongoing maintenance cost to a solo maintainer (`RISKS.md` R-04).
+**Consequences:** Slightly less bespoke visual control than a fully custom nav bar; mitigated by `DESIGN_SYSTEM.md`'s color/typography/motion tokens still applying fully within native components.
+**Future impacts:** Directly reduces the surface `CoachKit`'s future macOS Presentation layer (ADR-013) would need to reinvent, since native navigation idioms differ by platform far less than custom components would.
+
+---
+
 ## Approval Checklist — 2026-08-06 Architecture Review
 
 Status ahead of freezing the architecture for Phase 0 implementation.
@@ -236,3 +278,19 @@ Status ahead of freezing the architecture for Phase 0 implementation.
 - Defensive per-user Row Level Security despite single-user v1 scope
 
 **Outcome: architecture approved and frozen for Phase 0**, conditional on the required changes above — all of which are now reflected in `ARCHITECTURE.md`, `RISKS.md`, and `TASKS.md`. No further architecture review is needed before implementation begins unless a future decision changes one of the ADRs above (in which case, add a new ADR that supersedes it — do not edit history).
+
+---
+
+## Addendum — 2026-08-06 Specification Pass (same day, following architecture approval)
+
+With the architecture approved, Julia requested a final refinement pass to bring the project to professional-specification completeness before implementation. This produced ADR-014 through ADR-016 above, plus five new canonical documents:
+
+- `PROMPT_ENGINE.md` — AI coach behavior and prompting strategy
+- `LEARNING_ENGINE.md` — pedagogical formulas (spaced repetition, difficulty, fluency/confidence, level progression)
+- `DESIGN_SYSTEM.md` — visual identity and component specification
+- `NON_FUNCTIONAL_REQUIREMENTS.md` — measurable performance/security/quality/accessibility targets
+- `OBSERVABILITY.md` — logging, metrics, monitoring, and learning-health indicators
+
+A consistency pass was performed across all prior documents to remove duplication: `ARCHITECTURE.md` no longer restates formulas (`LEARNING_ENGINE.md`), latency/coverage numbers (`NON_FUNCTIONAL_REQUIREMENTS.md`), or observability detail (`OBSERVABILITY.md`) that now live in their dedicated canonical documents — it points to them instead. One genuine inconsistency was found and fixed in the process: `ARCHITECTURE.md` §5.3 referenced "(§11)" for the proactive-event-prep feature, which — read within `ARCHITECTURE.md` itself — pointed at the wrong section (Scalability, not a features list); corrected to explicitly cite `PROJECT.md` §11, where that feature is actually described.
+
+**This addendum, combined with the original review above, marks the full documentation set (`PROJECT.md`, `PROJECT_BRIEF.md`, `ARCHITECTURE.md`, `ARCHITECTURE_DECISIONS.md`, `ROADMAP.md`, `TASKS.md`, `RISKS.md`, `PROMPT_ENGINE.md`, `LEARNING_ENGINE.md`, `DESIGN_SYSTEM.md`, `NON_FUNCTIONAL_REQUIREMENTS.md`, `OBSERVABILITY.md`) as the final baseline before implementation begins.**

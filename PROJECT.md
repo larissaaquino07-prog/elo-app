@@ -98,20 +98,30 @@ These are captured as Phase 0 tasks in `TASKS.md` and as risks in `RISKS.md`.
 
 ## 10. Architecture status
 
-The technical architecture underwent a full Principal-Architect-level review on **2026-08-06**, covering Clean Architecture/SOLID compliance, scalability to a multi-year/multi-device horizon, persistence, sync, AI provider independence, the memory engine, voice, security, performance, and testability. All required changes from that review are incorporated into `ARCHITECTURE.md`; every decision and its rationale is recorded in `ARCHITECTURE_DECISIONS.md` (ADR-001 through ADR-013). **The architecture is frozen** — implementation (Phase 0 in `ROADMAP.md`) can proceed without a further architecture gate, unless a future decision supersedes one of the recorded ADRs.
+The technical architecture underwent a full Principal-Architect-level review on **2026-08-06**, covering Clean Architecture/SOLID compliance, scalability to a multi-year/multi-device horizon, persistence, sync, AI provider independence, the memory engine, voice, security, performance, and testability. All required changes from that review are incorporated into `ARCHITECTURE.md`; every decision and its rationale is recorded in `ARCHITECTURE_DECISIONS.md` (ADR-001 through ADR-016). **The architecture is frozen** — implementation (Phase 0 in `ROADMAP.md`) can proceed without a further architecture gate, unless a future decision supersedes one of the recorded ADRs.
 
-## 11. Candidate future features (post-v1, not yet scheduled beyond a placeholder)
+A follow-up specification pass, same day, produced the five product-level documents listed in §12 (`PROMPT_ENGINE.md`, `LEARNING_ENGINE.md`, `DESIGN_SYSTEM.md`, `NON_FUNCTIONAL_REQUIREMENTS.md`, `OBSERVABILITY.md`), closing the gap between "the architecture is sound" and "every behavior, formula, visual detail, and measurable target is specified." **This is considered the final documentation baseline before implementation begins.**
 
-Identified during the architecture review as valuable and consistent with the Core Principles, but deliberately not pulled into the near-term backlog to respect Principle 5 (quality over quantity). Tracked as low-priority Phase 5/6 items in `TASKS.md`:
+## 11. Candidate future features (post-v1, low priority)
 
-- Proactive event-prep coaching ("I have an interview next Tuesday" → the coach adapts upcoming sessions toward it) — the adaptive scheduler already reserves an input for this (`ARCHITECTURE.md` §5.3) so it can be added without a redesign.
-- Streak grace period, post-session recap, saved phrases/bookmarks, practice-history heatmap — small, high-warmth UX additions common to durable daily-habit apps, absent from the original brief.
-- A future macOS client reusing the same `CoachKit` Domain/Data package (`ARCHITECTURE.md` §6, ADR-013).
+Identified during the architecture review as valuable and consistent with the Core Principles, deliberately kept at low priority (Phase 5/6, `TASKS.md`) rather than pulled forward, to respect Principle 5 (quality over quantity) — the MVP loop (Phases 1–4) must be excellent before these are worth building:
+
+- Proactive event-prep coaching ("I have an interview next Tuesday" → the coach adapts upcoming sessions toward it) — the adaptive scheduler already reserves an input for this (`ARCHITECTURE.md` §5.3, `LEARNING_ENGINE.md` §10); UI activation tracked as `TASKS.md` T6-06.
+- Streak grace period, post-session recap, saved phrases/bookmarks, practice-history heatmap — small, high-warmth UX additions common to durable daily-habit apps, absent from the original brief; tracked as `TASKS.md` T5-08–T5-11.
+- A future macOS client reusing the same `CoachKit` Domain/Data package (`ARCHITECTURE.md` §6, ADR-013); evaluation tracked as `TASKS.md` T6-07.
 
 ## 12. Related documents
 
+Architecture & delivery:
 - `ROADMAP.md` — phased delivery plan
 - `TASKS.md` — prioritized backlog
 - `ARCHITECTURE.md` — technical architecture and data model
 - `ARCHITECTURE_DECISIONS.md` — architecture decision records (ADRs) and review approval checklist
 - `RISKS.md` — technical risks and mitigations
+
+Product specification (final pass, complements the architecture above):
+- `PROMPT_ENGINE.md` — AI coach behavior, tone, correction rules, prompting strategy
+- `LEARNING_ENGINE.md` — pedagogical logic: spaced repetition, difficulty, fluency/confidence
+- `DESIGN_SYSTEM.md` — visual identity, components, accessibility
+- `NON_FUNCTIONAL_REQUIREMENTS.md` — measurable performance/security/quality targets
+- `OBSERVABILITY.md` — logging, metrics, monitoring, learning-health indicators

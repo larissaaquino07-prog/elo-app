@@ -11,7 +11,7 @@ Likelihood/Impact scale: Low / Medium / High.
 
 The hybrid (Claude for reasoning/memory, OpenAI Realtime API for voice) is a reasonable default but untested for this exact pattern. Latency, cost, or context-injection quality may not meet the "feels premium" bar (Principle 6).
 
-**Mitigation:** Voice sequenced last (`ROADMAP.md` Phase 4). Native fallback (Speech framework + `AVSpeechSynthesizer`, T4-03) degrades a Realtime failure to reduced richness rather than a blocked session. The 2026-08-06 review added concrete acceptance criteria — latency budgets (~800ms voice, ~2s text first-token) and reconnect-before-fallback logic (`ARCHITECTURE.md` §5.4) — so this risk is now measurable, not just anticipated.
+**Mitigation:** Voice sequenced last (`ROADMAP.md` Phase 4). Native fallback (Speech framework + `AVSpeechSynthesizer`, T4-03) degrades a Realtime failure to reduced richness rather than a blocked session. The 2026-08-06 review added concrete acceptance criteria — latency budgets (canonical values in `NON_FUNCTIONAL_REQUIREMENTS.md` §1/§9) and reconnect-before-fallback logic (`ARCHITECTURE.md` §5.4) — so this risk is now measurable, not just anticipated. Fallback-engagement rate is tracked as a health signal (`OBSERVABILITY.md` §7).
 
 ---
 
@@ -44,7 +44,7 @@ Principle 1 makes memory loss the worst possible failure mode. Two distinct loss
 
 There is no team. If Julia stops maintaining it, or the Claude Code-assisted workflow becomes unavailable, the product has no continuity plan.
 
-**Mitigation:** Documentation (this doc set + `ARCHITECTURE_DECISIONS.md`) as the primary continuity mechanism — any future maintainer can resume from these files alone, including the reasoning behind each decision, not just the current state. Mainstream, well-documented Apple frameworks only. CI (T0-14) catches regressions automatically even without a reviewer.
+**Mitigation:** Documentation (the full set, including `PROMPT_ENGINE.md`, `LEARNING_ENGINE.md`, `DESIGN_SYSTEM.md`, `NON_FUNCTIONAL_REQUIREMENTS.md`, `OBSERVABILITY.md`) as the primary continuity mechanism — any future maintainer can resume from these files alone, including the reasoning behind each decision, not just the current state. Mainstream, well-documented Apple frameworks only. CI (T0-14) catches regressions automatically even without a reviewer. The in-app debug Health screen (`OBSERVABILITY.md` §10) gives a future maintainer a fast read on system state without needing separate ops tooling.
 
 ---
 
@@ -62,7 +62,7 @@ Anthropic, OpenAI, and Supabase will all ship breaking changes and deprecate mod
 
 D4 explicitly conditions the moderate budget on avoiding unnecessary API calls.
 
-**Mitigation:** Usage/cost dashboard (T6-01) from Phase 1. Concrete levers: Claude prompt caching, hierarchical memory bounding context size regardless of history length (ADR-009), native voice fallback avoiding API cost entirely for degraded/offline sessions, and provider-swappability itself as a long-term cost lever.
+**Mitigation:** Usage/cost dashboard (T6-01) from Phase 1, fed by per-call instrumentation (T1-17, `OBSERVABILITY.md` §7). Concrete levers, all specified in `PROMPT_ENGINE.md` §9: prompt caching, right-sized model per job (cheaper tier for background extraction/profile-update jobs), hierarchical memory bounding context size regardless of history length (ADR-009), native voice fallback avoiding API cost entirely for degraded/offline sessions, and provider-swappability itself as a long-term cost lever.
 
 ---
 

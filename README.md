@@ -1,172 +1,30 @@
-# elo
+# Personal AI English Coach
 
-App mobile de atividade física (corrida, musculação, vôlei, natação) focado em conectar
-pessoas para treinar juntas. Modelo freemium: R$ 15/mês.
+A premium, AI-powered personal English coach, built for daily use over many years — not a generic language-learning app, but a long-term, memory-driven relationship with an AI mentor. See `PROJECT.md` for the full vision.
 
-Protótipo React Native + Expo construído a partir da especificação em
-`elo — especificação do app`, usando o protótipo visual (React/web) fornecido como
-referência exata de identidade visual, componentes e fluxos de tela.
+## ⚠️ Repository status
 
-## Stack
+**This repository is mid-pivot.** The source tree currently still contains an unrelated Expo/React Native fitness-social prototype (`App.tsx`, `src/`, `package.json`, etc.) from a discontinued, earlier project. That code is **not** part of this project — see `ARCHITECTURE_DECISIONS.md` ADR-001. It will be removed and replaced by a fresh native Xcode project (Swift 6 / SwiftUI / iOS 18+) as the first task of Phase 0 in `ROADMAP.md` (`TASKS.md` T0-01/T0-02). Until then, do not treat anything under `src/`, `App.tsx`, or the old `package.json` as reflecting current product direction — this `README.md` and the documents below are the source of truth.
 
-- **Frontend**: Expo (SDK 57) + React Native + TypeScript
-- **Navegação**: React Navigation (bottom tabs, tab bar customizada)
-- **UI**: `react-native-svg` (logo, anel de progresso), `expo-linear-gradient` (cards com
-  gradiente), `expo-blur` (barra de navegação), `lucide-react-native` (ícones)
-- **Backend recomendado**: Supabase (auth, banco Postgres, storage, realtime para chat/feed)
+**Documentation is complete; implementation has not started.** As of 2026-08-06, the full specification set below has been written, reviewed, and frozen. The next step is Phase 0 of `ROADMAP.md`.
 
-Este projeto contém apenas o app (frontend) com dados mockados equivalentes aos do
-protótipo. Não há integração com Supabase ainda — os hooks de estado em
-`src/context/AppStateContext.tsx` são o ponto de entrada natural para plugar
-queries/mutations reais.
+## Documentation index
 
-## Rodando o projeto
+Read in this order for full context:
 
-```bash
-npm install
-npm run start   # abre o Metro/Expo com QR code — escaneie com o app Expo Go
-npm run web     # roda no navegador (útil para iterar rápido sem device)
-npm run ios     # requer macOS
-npm run android
-```
+1. `PROJECT_BRIEF.md` — original requirements, owner: Julia (source of truth for *what* and *why*)
+2. `PROJECT.md` — consolidated vision, principles, confirmed architecture decisions
+3. `ARCHITECTURE.md` — technical architecture: native iOS stack, Clean Architecture layering, data model, sync design
+4. `ARCHITECTURE_DECISIONS.md` — ADRs (ADR-001–016) and the architecture review approval checklist
+5. `PROMPT_ENGINE.md` — AI coach behavior, tone, correction rules, prompting/context strategy
+6. `LEARNING_ENGINE.md` — pedagogical logic: spaced repetition, difficulty, fluency/confidence scoring, level progression
+7. `DESIGN_SYSTEM.md` — visual identity, components, motion, accessibility
+8. `NON_FUNCTIONAL_REQUIREMENTS.md` — measurable performance/security/accessibility/quality targets
+9. `OBSERVABILITY.md` — logging, metrics, monitoring, learning-health indicators
+10. `ROADMAP.md` — phased delivery plan
+11. `TASKS.md` — prioritized backlog
+12. `RISKS.md` — technical risks and mitigations
 
-## Estrutura
+## Stack (target — not yet implemented)
 
-```
-App.tsx                       # providers (safe area, gesture handler, navegação) + overlays globais
-src/
-  theme/                      # paleta de cores e metadata por modalidade (cor, ícone, label)
-  types.ts                    # tipos compartilhados (Workout, Person, LeaderboardEntry, ...)
-  data/mockData.ts            # dados mockados (equivalentes ao protótipo)
-  context/AppStateContext.tsx # estado global: premium, paywall, toast, kudos, opt-ins, seção expandida
-  components/                 # componentes visuais reutilizáveis (cards, linhas, toggle, modal, toast)
-  screens/                    # as 5 telas de tab: Início, Treinos, Ranking, Conectar, Perfil
-  navigation/                 # bottom tab navigator + tab bar customizada (blur, ícones, cor ativa)
-```
-
-## Identidade visual
-
-- Fundo escuro (`#111417` / `#0e1013`), cards com gradiente sutil (`expo-linear-gradient`)
-  e sombra, evitando visual "flat"
-- Cores por modalidade: Corrida `#E0663E`, Musculação `#4A90A4`, Vôlei `#C9A24B`,
-  Natação `#5B7FA6` — centralizadas em `src/theme/colors.ts` e `src/theme/sports.ts`
-- Logo: quatro anéis com gradiente próprio (SVG), renderizada em `src/components/Logo.tsx`
-
-## Telas implementadas
-
-- **Início**: elo score com anel de progresso, gráfico de minutos por dia, stat cards,
-  feed de atividade dos contatos com kudos, atalho para registrar treino por modalidade
-- **Treinos**: barra de meta semanal, seções expansíveis por modalidade com detalhes
-  específicos (pace/distância, séries/carga, sets/parceiros)
-- **Ranking**: leaderboard de consistência; 1º e 2º lugar só exibem @ do Instagram se o
-  usuário tiver ativado o opt-in; desafio quinzenal para quem treina pouco
-- **Conectar**: lista de pessoas próximas só aparece com localização ativada (opt-in);
-  filtros avançados são bloqueados (paywall) para quem não é premium
-- **Perfil**: dados do usuário, status da assinatura + CTA de upgrade, toggles de
-  privacidade (localização e Instagram, ambos nascem ativados aqui só para fins de demo —
-  ver nota abaixo sobre regra de privacidade), modalidades praticadas
-
-## Regras de privacidade (não negociáveis, conforme especificação)
-
-- `location_opt_in` e `instagram_opt_in` devem nascer `false` no cadastro real — no mock
-  deste protótipo eles começam `true` apenas para que as telas de Ranking/Conectar já
-  exibam conteúdo sem exigir uma etapa de onboarding
-- Nunca inferir consentimento: exposição é sempre ação explícita do usuário (toggle)
-- Desativar o toggle ou perder a posição no ranking deve ocultar o dado imediatamente —
-  implementado em `RankingScreen` (Instagram) e `ConnectScreen` (localização)
-
-## Modelo de dados (sugestão de schema Supabase)
-
-```sql
-create table users (
-  id uuid primary key references auth.users,
-  nome text not null,
-  foto text,
-  cidade text,
-  bio text,
-  location_opt_in boolean not null default false,
-  instagram_handle text,
-  instagram_opt_in boolean not null default false
-);
-
-create table sports (
-  id serial primary key,
-  key text unique not null, -- corrida | musculacao | volei | natacao
-  label text not null
-);
-
-create table user_sports (
-  user_id uuid references users(id),
-  sport_id int references sports(id),
-  nivel text check (nivel in ('iniciante', 'intermediario', 'avancado')),
-  primary key (user_id, sport_id)
-);
-
-create table workouts (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references users(id),
-  sport_id int references sports(id),
-  data timestamptz not null default now(),
-  duracao_min int not null,
-  coletivo boolean not null default false,
-  detalhes jsonb -- pace/distancia, series/carga, sets/parceiros, estilo
-);
-
-create table connections (
-  user_a_id uuid references users(id),
-  user_b_id uuid references users(id),
-  status text check (status in ('pendente', 'aceito')),
-  tipo text check (tipo in ('avulsa', 'dupla_fixa')),
-  primary key (user_a_id, user_b_id)
-);
-
-create table events (
-  id uuid primary key default gen_random_uuid(),
-  criador_id uuid references users(id),
-  sport_id int references sports(id),
-  local text,
-  data_hora timestamptz,
-  participantes uuid[]
-);
-
-create table kudos (
-  user_id uuid references users(id),
-  workout_id uuid references workouts(id),
-  criado_em timestamptz not null default now(),
-  primary key (user_id, workout_id)
-);
-
-create table subscriptions (
-  user_id uuid primary key references users(id),
-  status text check (status in ('ativa', 'cancelada', 'expirada')),
-  data_expiracao timestamptz
-);
-
-create table weekly_goals (
-  user_id uuid references users(id),
-  minutos_meta int,
-  semana_referencia date,
-  primary key (user_id, semana_referencia)
-);
-```
-
-## Free vs. pago (R$ 15/mês)
-
-| Grátis | Pago |
-|---|---|
-| Registro de treinos (4 modalidades) | Estatísticas avançadas e histórico ilimitado |
-| Buscar e conectar com pessoas pra treinar | Filtros de match (nível, horário, localização) |
-| Grupos/eventos abertos | Criar grupos privados e eventos recorrentes |
-| Ranking e desafio quinzenal | Desafios extras, integração com wearables |
-
-A conexão social básica é gratuita (gancho de crescimento/rede); o pago é refinamento e
-conveniência. No app, isso aparece em `PersonCard` (bloqueio de filtro avançado) e no
-paywall acionado a partir do Perfil ou de um cartão bloqueado em Conectar.
-
-## Pendência em aberto (herdada da especificação)
-
-A especificação deixa em aberto se a meta semanal em **Treinos** deve ser só de
-**minutos totais** (implementado aqui, `weekly_goals.minutos_meta`) ou **por modalidade**
-(ex: 2x vôlei + 3x corrida/semana). Essa decisão de produto deve ser tomada antes de
-fechar o schema definitivo de `weekly_goals` — o schema acima cobre apenas o caso de
-minutos totais.
+Swift 6, SwiftUI, iOS 18+, SwiftData (local cache), Supabase (Postgres + `pgvector` + Auth + Edge Functions + Storage, source of truth), Anthropic Claude (reasoning/content), OpenAI Realtime API (voice), MVVM + Clean Architecture. Full rationale in `ARCHITECTURE.md` and `ARCHITECTURE_DECISIONS.md`.
