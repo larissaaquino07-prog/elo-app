@@ -117,6 +117,7 @@ Architecture & delivery:
 - `TASKS.md` — prioritized backlog
 - `ARCHITECTURE.md` — technical architecture and data model
 - `ARCHITECTURE_DECISIONS.md` — architecture decision records (ADRs) and review approval checklist
+- `REPOSITORY_AUDIT.md` — full audit of legacy-project remnants and the approved cleanup plan (ADR-017)
 - `RISKS.md` — technical risks and mitigations
 
 Product specification (final pass, complements the architecture above):

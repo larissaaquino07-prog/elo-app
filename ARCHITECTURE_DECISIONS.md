@@ -237,6 +237,25 @@ Format per decision: ID, Date, Problem, Alternatives Considered, Decision, Justi
 
 ---
 
+## ADR-017 — Total independence from the discontinued fitness project (governance decision)
+
+**Date:** 2026-08-06
+**Problem:** ADR-001 established that the client platform would be native Swift/SwiftUI rather than the repository's pre-existing Expo/React Native fitness prototype. That was a *technology* decision. It left an open question ADR-001 didn't address: whether the old project's code, structure, conventions, or documentation may still inform *any* future decision (architecture, naming, folder layout, visual identity, data modeling, dependency choices) simply because it happens to occupy the same repository. `REPOSITORY_AUDIT.md` (2026-08-06) found one remnant — `AGENTS.md`'s Expo-specific guidance — that was still actively doing exactly that: steering live sessions toward Expo tooling before any code is written.
+**Alternatives considered:**
+1. Leave the matter implicit — trust that ADR-001's technology decision is sufficient signal not to reuse old-project patterns.
+2. Formally and explicitly declare the old project fully independent, closed, and without influence over any future technical decision in this repository, of any kind — not limited to technology choice.
+**Decision:** Option 2.
+**Justification:** Option 1 already failed in practice — `AGENTS.md` was quietly steering sessions toward Expo despite ADR-001 having been decided weeks (in project time) earlier. An implicit boundary is not a boundary; an explicit one, recorded as an ADR and checked against a full audit (`REPOSITORY_AUDIT.md`), is. This decision is intentionally broader than "don't use the old tech stack" — it covers folder structure, naming, conventions, visual identity, data models, dependency choices, and documentation, none of which ADR-001 explicitly addressed on its own.
+**Formal declaration:**
+- The prior fitness application is a **completely independent, closed project** that happened to share this repository for historical reasons only.
+- **No future technical decision in this repository may be influenced by the legacy code**, structure, naming, or conventions — including cases where a legacy pattern would be "convenient" to reuse.
+- **Any reuse of anything from the legacy project must be justified on independent technical merit**, not on proximity or convenience — in practice, this has so far excluded everything (`REPOSITORY_AUDIT.md` §1 found zero source files that qualify, since TypeScript/React Native source cannot be imported into a Swift target regardless of how generic its logic is).
+- This repository is to be treated, from this point forward, **as if it had just been created** for this project alone.
+**Consequences:** A full cleanup pass (removing all 🔴-classified items in `REPOSITORY_AUDIT.md`) is required before Phase 0 implementation begins, rather than an incremental "delete files as we get to them" approach — the audit makes this a deliberate, complete, one-time act rather than an ongoing background risk.
+**Future impacts:** Any future session, human or AI, that considers reusing anything from the pre-2026-08-06 repository history must find and cite a specific technical justification here or in a new ADR — "it's already there" is explicitly not sufficient grounds, by this decision.
+
+---
+
 ## Approval Checklist — 2026-08-06 Architecture Review
 
 Status ahead of freezing the architecture for Phase 0 implementation.

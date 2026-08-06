@@ -4,9 +4,9 @@ A premium, AI-powered personal English coach, built for daily use over many year
 
 ## ⚠️ Repository status
 
-**This repository is mid-pivot.** The source tree currently still contains an unrelated Expo/React Native fitness-social prototype (`App.tsx`, `src/`, `package.json`, etc.) from a discontinued, earlier project. That code is **not** part of this project — see `ARCHITECTURE_DECISIONS.md` ADR-001. It will be removed and replaced by a fresh native Xcode project (Swift 6 / SwiftUI / iOS 18+) as the first task of Phase 0 in `ROADMAP.md` (`TASKS.md` T0-01/T0-02). Until then, do not treat anything under `src/`, `App.tsx`, or the old `package.json` as reflecting current product direction — this `README.md` and the documents below are the source of truth.
+**This repository is mid-pivot, cleanup pending approval.** The source tree currently still contains an unrelated Expo/React Native fitness-social prototype (`App.tsx`, `src/`, `package.json`, etc.) from a discontinued, fully independent earlier project. That code is **not** part of this project and must not influence any technical decision here — see `ARCHITECTURE_DECISIONS.md` ADR-001 and ADR-017. A complete, itemized removal plan for every legacy file is recorded in `REPOSITORY_AUDIT.md`; it executes as soon as Julia approves it, as the first act of Phase 0 (`TASKS.md` T0-01/T0-02). Until then, do not treat anything under `src/`, `App.tsx`, or the old `package.json` as reflecting current product direction — this `README.md` and the documents below are the source of truth.
 
-**Documentation is complete; implementation has not started.** As of 2026-08-06, the full specification set below has been written, reviewed, and frozen. The next step is Phase 0 of `ROADMAP.md`.
+**Documentation is complete; implementation has not started.** As of 2026-08-06, the full specification set below has been written, reviewed, and frozen. The next step is the approved cleanup in `REPOSITORY_AUDIT.md`, then Phase 0 of `ROADMAP.md`.
 
 ## Documentation index
 
@@ -24,6 +24,7 @@ Read in this order for full context:
 10. `ROADMAP.md` — phased delivery plan
 11. `TASKS.md` — prioritized backlog
 12. `RISKS.md` — technical risks and mitigations
+13. `REPOSITORY_AUDIT.md` — legacy-project remnant audit and approved cleanup plan
 
 ## Stack (target — not yet implemented)
 
