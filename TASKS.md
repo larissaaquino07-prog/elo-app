@@ -10,7 +10,7 @@ This backlog implements `ROADMAP.md`, the frozen architecture in `ARCHITECTURE.m
 
 | ID | Task | Priority | Depends on |
 |---|---|---|---|
-| T0-01 | Remove Expo/React Native scaffold from the repository (unrelated project, not migrated) | P0 | — |
+| T0-01 | ✅ Done (2026-08-06, `MIGRATION_PLAN.md`) — Remove Expo/React Native scaffold from the repository (unrelated project, not migrated) | P0 | — |
 | T0-02 | Create fresh native Xcode project (Swift 6, SwiftUI, iOS 18+ deployment target) | P0 | T0-01 |
 | T0-03 | Set up MVVM + Clean Architecture module structure, with Domain+Data as a separate Swift Package (`CoachKit`, ADR-013) | P0 | T0-02 |
 | T0-04 | Define Domain-layer protocols: `ConversationEngine`, `VoiceEngine`, `MemoryExtractionEngine`, `SessionRepository`, `MemoryRepository`, `SyncCoordinating` (ADR-005, ADR-006) | P0 | T0-03 |

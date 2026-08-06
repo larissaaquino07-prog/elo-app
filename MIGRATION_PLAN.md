@@ -324,3 +324,78 @@ Both mechanisms were confirmed sufficient by Julia in place of a remote tag. Rol
 ## 11. What happens after your approval
 
 Once approved: execute §4 in order, using the exact content in §5 (with your LICENSE choice from §5.2), producing the file sets in §6/§7/§8. This remains a documentation/infrastructure change only — no application code is written as part of this cleanup; Phase 0 implementation starts as separate, subsequent work.
+
+---
+
+## 12. Execution report (2026-08-06)
+
+Migration approved and executed in three commits on `claude/project-analysis-planning-bmwq6l`, in the order §4 specified:
+
+1. `49fa396` — recorded the checkpoint substitution (§4 step 1, §9, §10): remote tag push was blocked (HTTP 403, environment policy), so commit `84c9101` + the untouched default branch `claude/expo-react-native-project-uf82dc` became the official checkpoint, approved by Julia before any destructive step ran.
+2. `46167e8` — infrastructure adaptation: `.gitignore` and `AGENTS.md` and `.claude/settings.json` replaced with the content in §5.1/§5.3/§5.4; `.editorconfig` added (§5.5); `LICENSE` removed (§5.2 Option A, the stated default — no alternative was specified, so the default applied).
+3. `fa6c396` — legacy removal: exactly the 39 files enumerated in §6, no more and no fewer, confirmed by `git status --short | wc -l` immediately before committing.
+
+### 12.1 Unplanned finding during verification (§4 step 7)
+
+While confirming no legacy references remained (below), a second, unrelated consistency gap was found: **`PROJECT_BRIEF.md` was referenced throughout every document in this repository — starting with `README.md`'s own documentation index — as if it were a tracked file, but it had never actually existed in the repository.** It was only ever an external attachment to the conversation that produced `PROJECT.md` in the first place. Left uncorrected, the repository's own primary entry point (`README.md`) would have pointed at a non-existent file as "the source of truth for what and why" — precisely the kind of inconsistency this migration exists to eliminate, even though it has nothing to do with the Expo legacy. Added `PROJECT_BRIEF.md` with its original content, verbatim, as part of this migration's cleanup rather than leaving it for a separate pass.
+
+### 12.2 Verification — no remnants or references to the previous project
+
+Checked by direct search across every remaining tracked file, not by inspection of the removal list alone:
+
+| Check | Result |
+|---|---|
+| Legacy source files/directories on disk (`src/`, `App.tsx`, `index.ts`, `assets/`, Node/Expo manifests) | **Gone** — confirmed via `find` and direct `ls` (both `assets/` and `src/` report "No such file or directory") |
+| Fitness-domain terminology (`corrida`, `musculação`, `vôlei`, `natação`, `R$ 15`, `freemium`, `paywall`, `kudos`, workout/leaderboard fitness usage) anywhere in tracked Markdown/JSON | **Zero matches** |
+| "Expo" / "React Native" mentions outside historical/ADR context | **None** — every remaining mention (`ARCHITECTURE.md`, `RISKS.md`, `DESIGN_SYSTEM.md`, `TASKS.md`, `ROADMAP.md`, `PROJECT.md`) explicitly frames it as the discontinued predecessor (ADR-001/ADR-017), which is intentional provenance, not an active remnant — matches false-positived on the substring "expo" inside "export"/"exposure"/"exponential" were checked individually and are unrelated |
+| Old `LICENSE` copyright ("650 Industries, Inc.") | **Gone from any active file** — the only remaining mentions are inside `REPOSITORY_AUDIT.md` and this document, correctly describing the removed content as history |
+| Stray references to removed paths (`src/components`, `App.tsx`, `package.json`, `node_modules`) outside audit/migration/status documents | **None**, after correcting `README.md`'s status section (§12.3) |
+| `elo-app` as a brand/product name anywhere | **Zero matches** |
+
+### 12.3 Stale-status corrections made alongside the removal
+
+Three documents described the cleanup as *still pending* (accurate when written, stale the moment cleanup executed) and were updated to reflect completion, distinct from the historical audit/plan documents which are deliberately left describing the pre-cleanup state as a record:
+
+- `README.md` — "mid-pivot, cleanup pending approval" → "Clean and ready for Phase 0," with the documentation index reordered to mark `REPOSITORY_AUDIT.md`/`MIGRATION_PLAN.md` as historical records rather than pending action items.
+- `TASKS.md` T0-01 and `ROADMAP.md`'s matching Phase 0 bullet — marked ✅ Done (2026-08-06), pointing at this report, while T0-02 onward (the actual Xcode project) remains open, correctly distinguishing "cleanup done" from "Phase 0 done."
+- `REPOSITORY_AUDIT.md` — given a one-line status banner ("Status: executed... kept unmodified as the historical pre-cleanup record") rather than rewritten, so it remains an accurate snapshot of what was found, not a moving document.
+- `PROJECT.md` — ADR count reference updated from "ADR-001 through ADR-016" to "...through ADR-017."
+
+### 12.4 Final repository structure (confirmed, post-cleanup)
+
+```
+elo-app/
+├── .claude/settings.json
+├── .editorconfig
+├── .gitignore
+├── AGENTS.md
+├── ARCHITECTURE.md
+├── ARCHITECTURE_DECISIONS.md
+├── CLAUDE.md
+├── DESIGN_SYSTEM.md
+├── LEARNING_ENGINE.md
+├── MIGRATION_PLAN.md
+├── NON_FUNCTIONAL_REQUIREMENTS.md
+├── OBSERVABILITY.md
+├── PROJECT.md
+├── PROJECT_BRIEF.md
+├── PROMPT_ENGINE.md
+├── README.md
+├── REPOSITORY_AUDIT.md
+├── RISKS.md
+├── ROADMAP.md
+└── TASKS.md
+```
+
+20 files total. Every single one is either this project's own documentation/specification or generic, adapted infrastructure (§2.4/§2.5) — nothing from the discontinued fitness prototype remains, and nothing application-specific has been created yet (no Xcode project, no Swift source) — that is Phase 0's job, not this migration's.
+
+### 12.5 Documentation consistency — confirmed
+
+- No dangling references: every bare filename cited in backticks across all `.md` files (e.g. `` `ARCHITECTURE.md` ``) resolves to a file actually present in the repository, except deliberate historical mentions of removed files (`package.json`, `package-lock.json`) inside `REPOSITORY_AUDIT.md`/`MIGRATION_PLAN.md` themselves, and generic infra files explicitly documented as *not needed* (`CONTRIBUTING.md`, `CHANGELOG.md`, §3).
+- ADR count, document index, and repository-status language are aligned across `README.md`, `PROJECT.md`, `TASKS.md`, `ROADMAP.md` (§12.3).
+- `PROJECT_BRIEF.md` gap closed (§12.1) — the requirements source every other document cites now actually exists in-repo.
+
+### 12.6 Ready for Phase 0
+
+The repository is clean, internally consistent, and contains exclusively this project's material. Per your instruction, **no application implementation has begun** — `TASKS.md` T0-02 onward (creating the native Xcode project) remains the next, separate step, to be started only when you direct it.
+

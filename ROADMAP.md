@@ -9,7 +9,7 @@ Implements the confirmed stack: native iOS (Swift 6, SwiftUI, iOS 18+, MVVM + Cl
 ## Phase 0 — Foundations & Project Setup
 **Goal:** Stand up the real, native project and resolve everything that would otherwise stall Phase 1.
 
-- Remove the existing Expo/React Native scaffold from the repository — it belonged to an unrelated project and is not migrated.
+- ✅ Done (2026-08-06) — Remove the existing Expo/React Native scaffold from the repository — it belonged to an unrelated project and is not migrated. See `MIGRATION_PLAN.md` for the execution report.
 - Create a fresh native Xcode project (Swift 6, SwiftUI, iOS 18+ deployment target), with Domain + Data packaged as a separate Swift Package (`CoachKit`) from the start.
 - Set up the MVVM + Clean Architecture module structure (Presentation / Domain / Data), including Repository protocols (not just Engine protocols) so Presentation never touches SwiftData directly.
 - Provision Supabase project (Postgres + `pgvector` + Auth + Edge Functions + Storage) and Anthropic + OpenAI API accounts.
