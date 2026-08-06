@@ -256,6 +256,20 @@ Format per decision: ID, Date, Problem, Alternatives Considered, Decision, Justi
 
 ---
 
+## ADR-018 — `CoachKit` split into `CoachKitDomain` / `CoachKitData` Swift Package targets
+
+**Date:** 2026-08-06
+**Problem:** ADR-006 established that Presentation must depend on Domain-layer Repository/Engine protocols, never on SwiftData or the Supabase SDK directly. As originally sketched (`ARCHITECTURE.md` §2, `REPOSITORY_AUDIT.md` §7), `CoachKit` was a single Swift Package target with `Domain/` and `Data/` as folder conventions inside it — a real but *convention-only* boundary, checkable only by code review or a manual grep. While drafting `IMPLEMENTATION_PLAN.md`'s task-by-task breakdown, this was identified as weaker than it needed to be, at negligible cost to fix.
+**Alternatives considered:**
+1. Keep the single-target, folder-only split (as originally sketched) — simpler package setup, boundary enforced by convention/review only.
+2. Split `CoachKit` into two library targets in the same package — `CoachKitDomain` (zero dependencies) and `CoachKitData` (depends on `CoachKitDomain`, SwiftData, and the Supabase SDK).
+**Decision:** Option 2.
+**Justification:** With two targets, `CoachKitDomain` simply cannot import SwiftData or the Supabase SDK — it isn't a dependency of that target, so a violation is a compile error, not a lint finding someone has to remember to check for. This directly upgrades ADR-006 (the review's top finding) from "enforced by convention" to "enforced by the compiler," at the cost of slightly more Swift Package Manager setup ceremony (two target declarations instead of one).
+**Consequences:** `IMPLEMENTATION_PLAN.md` macro-stage 3 and every later macro-stage's Data-layer tasks are written against this two-target structure, not the original single-target sketch. `ARCHITECTURE.md` §6 is updated to match.
+**Future impacts:** A future macOS Presentation layer (ADR-013) depends on both targets exactly as the iOS app does — no change to this boundary is needed to support it.
+
+---
+
 ## Approval Checklist — 2026-08-06 Architecture Review
 
 Status ahead of freezing the architecture for Phase 0 implementation.

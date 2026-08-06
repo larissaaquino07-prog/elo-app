@@ -6,7 +6,7 @@ A premium, AI-powered personal English coach, built for daily use over many year
 
 **Clean and ready for Phase 0.** This repository originally shared history with an unrelated Expo/React Native fitness-social prototype (a fully independent, discontinued project — see `ARCHITECTURE_DECISIONS.md` ADR-001/ADR-017). That code has been fully removed per the approved `MIGRATION_PLAN.md`, executed 2026-08-06; the repository tree now contains exclusively this project's documentation and infrastructure — see `MIGRATION_PLAN.md` §12 for the execution report and the confirmed-clean repository structure. Nothing under a former `src/`, `App.tsx`, or `package.json` exists anymore; do not recreate anything based on the old project.
 
-**Documentation is complete; implementation has not started.** As of 2026-08-06, the full specification set below has been written, reviewed, frozen, and the repository migrated to a clean state. The next step is Phase 0 of `ROADMAP.md` (creating the native Xcode project).
+**Documentation is complete; implementation has not started.** As of 2026-08-06, the full specification set below has been written, reviewed, frozen, and the repository migrated to a clean state. A detailed, task-by-task `IMPLEMENTATION_PLAN.md` now exists covering all 26 macro-stages of the build. The next step is macro-stage 1 of that plan (creating the native Xcode project) — not yet started.
 
 ## Documentation index
 
@@ -24,8 +24,9 @@ Read in this order for full context:
 10. `ROADMAP.md` — phased delivery plan
 11. `TASKS.md` — prioritized backlog
 12. `RISKS.md` — technical risks and mitigations
-13. `REPOSITORY_AUDIT.md` — legacy-project remnant audit (historical record, pre-cleanup)
-14. `MIGRATION_PLAN.md` — migration plan and execution report (historical record, cleanup complete)
+13. `IMPLEMENTATION_PLAN.md` — detailed, task-by-task execution plan (26 macro-stages) — the active guide for all upcoming implementation work
+14. `REPOSITORY_AUDIT.md` — legacy-project remnant audit (historical record, pre-cleanup)
+15. `MIGRATION_PLAN.md` — migration plan and execution report (historical record, cleanup complete)
 
 ## Stack (target — not yet implemented)
 

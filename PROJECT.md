@@ -117,7 +117,9 @@ Architecture & delivery:
 - `TASKS.md` — prioritized backlog
 - `ARCHITECTURE.md` — technical architecture and data model
 - `ARCHITECTURE_DECISIONS.md` — architecture decision records (ADRs) and review approval checklist
+- `IMPLEMENTATION_PLAN.md` — detailed, task-by-task execution plan (26 macro-stages), the active guide for implementation
 - `REPOSITORY_AUDIT.md` — full audit of legacy-project remnants and the approved cleanup plan (ADR-017)
+- `MIGRATION_PLAN.md` — migration execution report confirming the clean repository state `IMPLEMENTATION_PLAN.md` builds on
 - `RISKS.md` — technical risks and mitigations
 
 Product specification (final pass, complements the architecture above):

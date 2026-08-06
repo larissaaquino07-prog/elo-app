@@ -209,6 +209,8 @@ Unchanged: read-only SwiftUI views over the local cache, now reached through `Me
 
 Unchanged core approach (Supabase Edge Functions as an owned, versioned API) with one addition: the **Domain + Data layers are structured as a separate Swift Package** (working name `CoachKit`) from day one, even though only one app target consumes it in v1. This costs nothing now and is exactly what a future macOS app needs to reuse without duplicating business logic — SwiftData and Swift concurrency both run natively on macOS, so `CoachKit` would need zero changes, only a new macOS-specific Presentation target (ADR-013). Web/Android, if ever pursued, cannot reuse `CoachKit` (different language/runtime) but face no redesign either, since they'd talk to the same backend API `CoachKit` already talks to.
 
+**Refinement (ADR-018):** `CoachKit` is not one target with `Domain/`/`Data/` as folder conventions — it is **two library targets**, `CoachKitDomain` (zero dependencies) and `CoachKitData` (depends on `CoachKitDomain` + SwiftData + the Supabase SDK). This makes §2.1's Presentation-must-not-touch-SwiftData rule a compile error if violated, not just a review checklist item.
+
 ## 7. Security & privacy
 
 Everything from the prior draft (Keychain session tokens, SwiftData Data Protection, Supabase RLS + encryption at rest, API-tier data-usage policy verification, reversible export/delete) still applies, plus:
