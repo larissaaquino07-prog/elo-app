@@ -2,7 +2,7 @@
 
 The technical execution plan for building the application, decomposed into 26 macro-stages and ~140 small, independent, verifiable tasks. This document is the **how and in what order**; `TASKS.md` remains the **what and priority** backlog.
 
-**Status: implementation started.** Macro-stage 1, tasks 1.1–1.2 are done (`apps/mobile` exists, boots, and type-checks under full TypeScript strictness). Tasks 1.3–1.4 and every later task remain open.
+**Status: implementation started.** Macro-stage 1, tasks 1.1–1.3 are done (`apps/mobile` exists, boots, type-checks under full TypeScript strictness, and both the repository-root and `apps/mobile` `.gitignore` files are verified against real generated output). Task 1.4 and every later task remain open.
 
 **Physical-device verification note (added at task 1.1):** this Claude Code Remote session runs in an ephemeral container with no network path to Julia's iPhone or notebook, so any completion criterion requiring an on-device check (e.g., "scan the QR code in Expo Go") is split into two layers going forward — agreed with Julia 2026-08-07: (1) everything automatable in-session (compiles, boots, type-checks, a headless-browser screenshot of the web target as a visual proxy) is verified here and the task is marked done on that basis; (2) the physical-device confirmation itself is deferred to Julia, done whenever practical, and does not block subsequent tasks. Each task below notes explicitly when this split applies.
 
@@ -121,13 +121,15 @@ Unchanged from the original plan — macro-stage-to-`ROADMAP.md`-phase and `TASK
 - **Execution Environment: Any Environment.**
 
 ### 1.3 — Verify `.gitignore` against real generated paths
+- **Status: ✅ Done (2026-08-07) — a real gap was found, not just confirmed absent.**
 - **Objetivo:** confirm the Expo/RN `.gitignore` (already updated during the earlier repository migration, `MIGRATION_PLAN.md`) covers what Expo/EAS actually generates in practice (`.expo/`, `node_modules/`, EAS build artifacts, etc.).
 - **Criar:** —
 - **Modificar:** `.gitignore` (only if a gap is found).
 - **Depende de:** 1.1
 - **Critérios de conclusão:** `git status` after a dev-server run and a local build attempt shows zero untracked/dirty generated files.
-- **Riscos:** low.
-- **Testes:** manual `git status` check.
+- **Execução real:** this task's own objective line assumed the repository-root `.gitignore` was "already updated during the earlier repository migration" — checked directly rather than trusted, and that assumption was **wrong**: the root `.gitignore` was still 100% Xcode/Swift-specific (`build/`, `DerivedData/`, `*.xcuserstate`, `*.xcscmblueprint`, `xcuserdata/`, `.build/`, `.swiftpm/...`, `*.xcconfig.local`), a leftover from the pre-ADR-019 native plan that the documentation migration pass never touched (it isn't a `.md` file, so it wasn't in scope of that pass). Rewrote it: dropped every Swift/Xcode-only entry (there is no Swift code left in this repository to generate them), kept the generic entries (`.DS_Store`, `.env`, `.env.local`), and added Node/Expo/EAS coverage (`node_modules/`, `.expo/`, `dist/`, `web-build/`, `expo-env.d.ts`, `*.tsbuildinfo`, npm/yarn debug logs, `*.ipa`/`*.apk`/`*.aab`/`*.dSYM`/`*.dSYM.zip` release artifacts, credential/key file patterns). Unanchored, so it covers any future workspace package (macro-stage 3), not just `apps/mobile` — which already ships its own generated `.gitignore` covering the same ground independently; the two overlap harmlessly rather than conflicting.
+- **Testes:** ran `npx expo start --web` (a dev-server run) and, separately, `npx expo export --platform web` (a real local build attempt, not simulated — produced an actual `dist/` with static routes and a JS bundle). `git status --porcelain` after both: only `.gitignore` itself showed as modified — zero untracked or dirty generated files, satisfying the completion criterion literally, not just in spirit. `dist/` removed afterward as a spent test artifact (it was gitignored either way).
+- **Riscos:** low. *(Held — the fix itself was a straightforward `.gitignore` rewrite, no surprises.)*
 - **Impacto na arquitetura:** none.
 - **Execution Environment: Any Environment.**
 

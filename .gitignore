@@ -1,11 +1,32 @@
-# Xcode
-build/
-DerivedData/
-*.xcuserstate
-*.xcscmblueprint
-xcuserdata/
-.build/
-.swiftpm/xcode/package.xcworkspace/xcuserdata/
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native (generated/local artifacts — not the hand-authored macro-stage 21
+# WidgetKit module, which lives outside any of these generated paths)
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# TypeScript
+*.tsbuildinfo
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
 
 # macOS
 .DS_Store
@@ -13,9 +34,12 @@ xcuserdata/
 # Secrets / local-only config
 .env
 .env.local
-*.xcconfig.local
+.env*.local
+*.pem
 
 # CI/release artifacts
 *.ipa
+*.apk
+*.aab
 *.dSYM
 *.dSYM.zip
