@@ -11,7 +11,7 @@ Likelihood/Impact scale: Low / Medium / High.
 
 The hybrid (Claude for reasoning/memory, OpenAI Realtime API for voice) is a reasonable default but untested for this exact pattern. Latency, cost, or context-injection quality may not meet the "feels premium" bar (Principle 6).
 
-**Mitigation:** Voice sequenced last (`ROADMAP.md` Phase 4). Native fallback (`@react-native-voice/voice` + `expo-speech`, T4-03 — the React Native equivalents of the Speech framework + `AVSpeechSynthesizer`, per the 2026-08-06 client platform migration, ADR-019) degrades a Realtime failure to reduced richness rather than a blocked session, on iOS/Android. The 2026-08-06 review added concrete acceptance criteria — latency budgets (canonical values in `NON_FUNCTIONAL_REQUIREMENTS.md` §1/§9) and reconnect-before-fallback logic (`ARCHITECTURE.md` §5.4) — so this risk is now measurable, not just anticipated. Fallback-engagement rate is tracked as a health signal (`OBSERVABILITY.md` §7). On web, no offline voice fallback exists at all (`ARCHITECTURE_DECISIONS.md` ADR-024) — a wider risk surface than the original iOS-only design, accepted under the companion-surface framing.
+**Mitigation:** Voice sequenced last (`ROADMAP.md` Phase 4). Native fallback (`@react-native-voice/voice` + `expo-speech`, T4-03 — the React Native equivalents of the Speech framework + `AVSpeechSynthesizer`, per the 2026-08-07 client platform migration, ADR-019) degrades a Realtime failure to reduced richness rather than a blocked session, on iOS/Android. The 2026-08-06 review added concrete acceptance criteria — latency budgets (canonical values in `NON_FUNCTIONAL_REQUIREMENTS.md` §1/§9) and reconnect-before-fallback logic (`ARCHITECTURE.md` §5.4) — so this risk is now measurable, not just anticipated. Fallback-engagement rate is tracked as a health signal (`OBSERVABILITY.md` §7). On web, no offline voice fallback exists at all (`ARCHITECTURE_DECISIONS.md` ADR-024) — a wider risk surface than the original iOS-only design, accepted under the companion-surface framing.
 
 ---
 
@@ -44,7 +44,7 @@ Principle 1 makes memory loss the worst possible failure mode. Two distinct loss
 
 There is no team. If Julia stops maintaining it, or the Claude Code-assisted workflow becomes unavailable, the product has no continuity plan.
 
-**Mitigation:** Documentation (the full set, including `PROMPT_ENGINE.md`, `LEARNING_ENGINE.md`, `DESIGN_SYSTEM.md`, `NON_FUNCTIONAL_REQUIREMENTS.md`, `OBSERVABILITY.md`) as the primary continuity mechanism — any future maintainer can resume from these files alone, including the reasoning behind each decision, not just the current state. Mainstream, well-documented frameworks only — this consideration directly informed the 2026-08-06 client platform migration itself (`ARCHITECTURE_DECISIONS.md` ADR-019): TypeScript/React Native's broader AI-coding-assistant proficiency and ecosystem depth serve this exact risk more directly than the original Swift stack would have, given no-macOS-access made that stack impossible to continue anyway. CI (T0-14) catches regressions automatically even without a reviewer, and — a genuine simplification from the migration — no longer needs a macOS runner for most of the suite. The in-app debug Health screen (`OBSERVABILITY.md` §10) gives a future maintainer a fast read on system state without needing separate ops tooling.
+**Mitigation:** Documentation (the full set, including `PROMPT_ENGINE.md`, `LEARNING_ENGINE.md`, `DESIGN_SYSTEM.md`, `NON_FUNCTIONAL_REQUIREMENTS.md`, `OBSERVABILITY.md`) as the primary continuity mechanism — any future maintainer can resume from these files alone, including the reasoning behind each decision, not just the current state. Mainstream, well-documented frameworks only — this consideration directly informed the 2026-08-07 client platform migration itself (`ARCHITECTURE_DECISIONS.md` ADR-019): TypeScript/React Native's broader AI-coding-assistant proficiency and ecosystem depth serve this exact risk more directly than the original Swift stack would have, given no-macOS-access made that stack impossible to continue anyway. CI (T0-14) catches regressions automatically even without a reviewer, and — a genuine simplification from the migration — no longer needs a macOS runner for most of the suite. The in-app debug Health screen (`OBSERVABILITY.md` §10) gives a future maintainer a fast read on system state without needing separate ops tooling.
 
 ---
 
@@ -67,7 +67,7 @@ D4 explicitly conditions the moderate budget on avoiding unnecessary API calls.
 ---
 
 ## R-07 — iOS distribution for years-long personal use
-**Likelihood:** Medium (was High before the 2026-08-06 client platform migration) · **Impact:** High
+**Likelihood:** Medium (was High before the 2026-08-07 client platform migration) · **Impact:** High
 
 Distribution mechanism is confirmed in principle (T0-10) but the operational mitigation still needs setting up in Phase 0.
 
@@ -89,14 +89,14 @@ Principle 3 is literally impossible on day one with zero memory.
 
 HR-scenario role-plays and real professional goals may reference sensitive workplace situations, across third-party APIs, Supabase, and (previously) the local cache.
 
-**Mitigation:** API-tier data-usage policy verification, Supabase encryption + RLS, `expo-secure-store` + device-level data protection (iOS/Android — the React Native equivalents of the original Keychain + Data Protection plan, per the 2026-08-06 client platform migration). The review adds **app-level Face ID/Touch ID lock** (ADR-011, now via `expo-local-authentication`) as a further layer on iOS/Android, and confirms the local cache never holds raw transcripts (ADR-008 removes them from the sync payload entirely, not just from the local `expo-sqlite` model — they never leave Supabase Storage except on explicit on-demand read). On web, session storage is weaker by construction (no OS-level secure storage in a browser, `ARCHITECTURE_DECISIONS.md` ADR-024) — an accepted asymmetry under the companion-surface framing, not an oversight.
+**Mitigation:** API-tier data-usage policy verification, Supabase encryption + RLS, `expo-secure-store` + device-level data protection (iOS/Android — the React Native equivalents of the original Keychain + Data Protection plan, per the 2026-08-07 client platform migration). The review adds **app-level Face ID/Touch ID lock** (ADR-011, now via `expo-local-authentication`) as a further layer on iOS/Android, and confirms the local cache never holds raw transcripts (ADR-008 removes them from the sync payload entirely, not just from the local `expo-sqlite` model — they never leave Supabase Storage except on explicit on-demand read). On web, session storage is weaker by construction (no OS-level secure storage in a browser, `ARCHITECTURE_DECISIONS.md` ADR-024) — an accepted asymmetry under the companion-surface framing, not an oversight.
 
 ---
 
 ## R-10 — Existing repository domain mismatch
 **Likelihood:** N/A (already occurred) · **Impact:** Low (caught and resolved)
 
-**Status: Resolved.** The Expo/React Native fitness app is a separate, unrelated project (ADR-001/ADR-017). Note (2026-08-06): the client platform D1 originally chose (native Swift) has since itself been superseded by a *second*, unrelated React Native adoption (ADR-019) — this does not reopen R-10 or weaken its resolution; `ARCHITECTURE_DECISIONS.md`'s ADR-019–024 addendum states explicitly why "React Native is back" is not "the old project is back."
+**Status: Resolved.** The Expo/React Native fitness app is a separate, unrelated project (ADR-001/ADR-017). Note (2026-08-07): the client platform D1 originally chose (native Swift) has since itself been superseded by a *second*, unrelated React Native adoption (ADR-019) — this does not reopen R-10 or weaken its resolution; `ARCHITECTURE_DECISIONS.md`'s ADR-019–024 addendum states explicitly why "React Native is back" is not "the old project is back."
 
 ---
 
@@ -117,7 +117,7 @@ Offline-first local writes plus a remote source of truth risks silent conflict r
 ## R-12 — Strict-mode rigor from day one is a deliberate narrowing, not an oversight
 **Likelihood:** Low · **Impact:** Low
 
-*(Superseded content, 2026-08-06 client platform migration, ADR-019 — kept as R-12 per this document's no-renumbering rule.)* The original risk named targeting iOS 18+ only and adopting Swift 6 strict concurrency from day one as a deliberate compatibility narrowing. That specific technology no longer applies. **The identical reasoning now applies to TypeScript strict mode** (`ARCHITECTURE.md` §1): adopted fully from the first commit, not gradually, for the same underlying trade-off.
+*(Superseded content, 2026-08-07 client platform migration, ADR-019 — kept as R-12 per this document's no-renumbering rule.)* The original risk named targeting iOS 18+ only and adopting Swift 6 strict concurrency from day one as a deliberate compatibility narrowing. That specific technology no longer applies. **The identical reasoning now applies to TypeScript strict mode** (`ARCHITECTURE.md` §1): adopted fully from the first commit, not gradually, for the same underlying trade-off.
 
 **Mitigation:** Accepted trade-off — single-user personal app, Julia controls her own devices. Paying the strict-mode rigor cost once, early, is cheaper than retrofitting it after voice/sync/background-job complexity lands — true regardless of which language expresses it.
 

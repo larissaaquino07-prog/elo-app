@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-Technical architecture for the personal AI English coach. Complements `PROJECT.md` (why) with the how. Implements confirmed decisions D1–D4 (`PROJECT.md` §8) plus the improvements approved in the 2026-08-06 Architecture Review, **and the 2026-08-06 client platform migration to React Native + Expo** — see `ARCHITECTURE_DECISIONS.md` for the full rationale behind every decision referenced here as `ADR-xxx`, and `RN_EXPO_MIGRATION_PLAN.md` for the migration's full technical analysis.
+Technical architecture for the personal AI English coach. Complements `PROJECT.md` (why) with the how. Implements confirmed decisions D1–D4 (`PROJECT.md` §8) plus the improvements approved in the 2026-08-06 Architecture Review, **and the 2026-08-07 client platform migration to React Native + Expo** — see `ARCHITECTURE_DECISIONS.md` for the full rationale behind every decision referenced here as `ADR-xxx`, and `RN_EXPO_MIGRATION_PLAN.md` for the migration's full technical analysis.
 
 This document owns **structure and design** (layers, data model, sync mechanics, subsystem responsibilities). Five companion specifications own their own domains and are the canonical source where referenced: `PROMPT_ENGINE.md` (AI behavior/prompting), `LEARNING_ENGINE.md` (pedagogical formulas), `DESIGN_SYSTEM.md` (visual identity), `NON_FUNCTIONAL_REQUIREMENTS.md` (measurable targets), `OBSERVABILITY.md` (monitoring detail). Where this document previously stated a number or formula now owned elsewhere, it points there instead of repeating it, to avoid two sources of truth.
 

@@ -4,7 +4,7 @@ The technical execution plan for building the application, decomposed into 26 ma
 
 **Status: planning only.** No Expo project exists yet, no code has been written, no task is marked complete.
 
-**2026-08-06 — client platform migration to React Native + Expo (ADR-019–024).** This entire document was originally written against native Swift/SwiftUI. Per Julia's explicit instruction, it has been updated as follows, **not uniformly**:
+**2026-08-07 — client platform migration to React Native + Expo (ADR-019–024).** This entire document was originally written against native Swift/SwiftUI. Per Julia's explicit instruction, it has been updated as follows, **not uniformly**:
 - **Macro-stages 1–4** (project creation, folder structure, monorepo package setup, local persistence) are **fully rewritten**, task-by-task, for Expo/TypeScript/monorepo/`expo-sqlite` — reviewed with the same rigor as the original authoring pass.
 - **Macro-stages 5–23 and 25** received a **mechanical technology-reference update** (SwiftUI→React Native, SwiftData→`expo-sqlite`, `CoachKit`→`@coach/domain`/`@coach/data`, XCTest/XCUITest→Jest/Detox-or-Maestro, Keychain→`expo-secure-store`, etc.) — file paths, package names, and the Execution Environment classification are updated, but each of these stages is flagged with a banner and should be **re-reviewed in full before work on it starts**, not treated as already re-verified line-by-line the way 1–4 have been.
 - **Macro-stages 24 (Testing/CI) and 26 (Distribution)** are **substantially rewritten**, not just mechanically updated, because EAS Build changes their actual mechanics, not just their vocabulary.

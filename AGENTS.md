@@ -18,5 +18,5 @@ it. Note: this project's client platform changed twice (Expo/React Native →
 native Swift/SwiftUI → React Native + Expo again, ADR-001, ADR-019) for
 unrelated reasons each time — see `ARCHITECTURE_DECISIONS.md`'s ADR-019–024
 addendum before assuming anything about "the old app" based on this
-repository's history; the current React Native adoption has no relationship
-to the discontinued pre-2026-08-06 prototype (ADR-017).
+repository's history; the current React Native adoption (2026-08-07) has no
+relationship to the discontinued pre-2026-08-06 prototype (ADR-017).

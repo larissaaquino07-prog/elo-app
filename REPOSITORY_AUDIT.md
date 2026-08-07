@@ -2,7 +2,7 @@
 
 **Status: executed.** This audit's findings were carried out via `MIGRATION_PLAN.md` on 2026-08-06 — see that document §12 for the execution report. This file is kept unmodified from its original form as the historical pre-cleanup record; it describes the repository *before* cleanup, not its current state.
 
-**Later the same day**, the client platform itself was migrated from native Swift/SwiftUI to React Native + Expo (`ARCHITECTURE_DECISIONS.md` ADR-019–024, `RN_EXPO_MIGRATION_PLAN.md`) — a separate, unrelated decision that does not reopen this audit's findings or its central conclusion (ADR-017: the pre-2026-08-06 fitness prototype remains fully independent and uninfluential, regardless of which client technology this project later adopts).
+**The following day (2026-08-07)**, the client platform itself was migrated from native Swift/SwiftUI to React Native + Expo (`ARCHITECTURE_DECISIONS.md` ADR-019–024, `RN_EXPO_MIGRATION_PLAN.md`) — a separate, unrelated decision that does not reopen this audit's findings or its central conclusion (ADR-017: the pre-2026-08-06 fitness prototype remains fully independent and uninfluential, regardless of which client technology this project later adopts).
 
 ---
 

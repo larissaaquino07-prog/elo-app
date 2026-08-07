@@ -2,7 +2,7 @@
 
 Prioritized backlog. IDs are `<Phase>-<Number>`. Priority: **P0** (blocks the phase), **P1** (needed for the phase's exit criteria), **P2** (valuable, can slip to a later phase without breaking the exit criteria).
 
-This backlog implements `ROADMAP.md`, the frozen architecture in `ARCHITECTURE.md`/`ARCHITECTURE_DECISIONS.md`, and the product specification in `PROMPT_ENGINE.md`, `LEARNING_ENGINE.md`, `DESIGN_SYSTEM.md`, `NON_FUNCTIONAL_REQUIREMENTS.md`, `OBSERVABILITY.md`. Updated 2026-08-06 (Architecture Review), again the same day (Specification Pass), and again the same day (client platform migration to React Native + Expo, ADR-019–024) — task IDs, priorities, and dependencies are unchanged by the platform migration; only the technology named in each task's description is updated.
+This backlog implements `ROADMAP.md`, the frozen architecture in `ARCHITECTURE.md`/`ARCHITECTURE_DECISIONS.md`, and the product specification in `PROMPT_ENGINE.md`, `LEARNING_ENGINE.md`, `DESIGN_SYSTEM.md`, `NON_FUNCTIONAL_REQUIREMENTS.md`, `OBSERVABILITY.md`. Updated 2026-08-06 (Architecture Review), again the same day (Specification Pass), and again on 2026-08-07 (client platform migration to React Native + Expo, ADR-019–024) — task IDs, priorities, and dependencies are unchanged by the platform migration; only the technology named in each task's description is updated.
 
 ---
 
