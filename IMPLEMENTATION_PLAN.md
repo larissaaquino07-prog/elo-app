@@ -2,7 +2,7 @@
 
 The technical execution plan for building the application, decomposed into 26 macro-stages and ~140 small, independent, verifiable tasks. This document is the **how and in what order**; `TASKS.md` remains the **what and priority** backlog.
 
-**Status: implementation started.** Macro-stage 1, task 1.1 is done (`apps/mobile` exists and boots). Tasks 1.2–1.4 and every later task remain open — no task is marked complete beyond 1.1.
+**Status: implementation started.** Macro-stage 1, tasks 1.1–1.2 are done (`apps/mobile` exists, boots, and type-checks under full TypeScript strictness). Tasks 1.3–1.4 and every later task remain open.
 
 **Physical-device verification note (added at task 1.1):** this Claude Code Remote session runs in an ephemeral container with no network path to Julia's iPhone or notebook, so any completion criterion requiring an on-device check (e.g., "scan the QR code in Expo Go") is split into two layers going forward — agreed with Julia 2026-08-07: (1) everything automatable in-session (compiles, boots, type-checks, a headless-browser screenshot of the web target as a visual proxy) is verified here and the task is marked done on that basis; (2) the physical-device confirmation itself is deferred to Julia, done whenever practical, and does not block subsequent tasks. Each task below notes explicitly when this split applies.
 
@@ -107,13 +107,16 @@ Unchanged from the original plan — macro-stage-to-`ROADMAP.md`-phase and `TASK
 - **Execution Environment: Any Environment.**
 
 ### 1.2 — Configure TypeScript strict mode
+- **Status: ✅ Done (2026-08-07).**
 - **Objetivo:** `tsconfig.json` with `strict: true` and every strictness flag on (`noImplicitAny`, `strictNullChecks`, `noUncheckedIndexedAccess`, etc.) from the first commit.
 - **Criar:** —
 - **Modificar:** `apps/mobile/tsconfig.json`.
 - **Depende de:** 1.1
 - **Critérios de conclusão:** `tsc --noEmit` passes on the placeholder app; a deliberately-introduced type error (temporary, reverted after the check) fails the type check.
-- **Riscos:** defaulting to Expo's non-strict base config — must be set explicitly (the direct successor to `RISKS.md` R-12's "pay the rigor cost once, early" stance).
-- **Testes:** the deliberate-error check described above.
+- **Execução real:** `apps/mobile/tsconfig.json` already had `"strict": true` set explicitly by the template (`expo/tsconfig.base`, checked directly, does **not** itself set `strict` — confirmed by reading the file rather than assuming), so `noImplicitAny`/`strictNullChecks`/`strictFunctionTypes`/`strictPropertyInitialization`/`strictBindCallApply`/`noImplicitThis`/`alwaysStrict`/`useUnknownInCatchVariables` were already on via the `strict` umbrella before this task started. Added explicitly, since none of them are part of `strict`: `noUncheckedIndexedAccess` (the flag this task names directly), `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `noFallthroughCasesInSwitch`, `noImplicitReturns`, and `forceConsistentCasingInFileNames` (already TypeScript's default since 5.x — set explicitly anyway so the rigor is stated, not implied, consistent with this task's "from the first commit, not gradually" framing).
+- **Alternativa considerada e descartada:** also enabling `noUnusedLocals`/`noUnusedParameters` at the compiler level. Left out deliberately — these catch dead code, not type-unsoundness, they're commonly better owned by ESLint (`@typescript-eslint/no-unused-vars`, not yet configured — later task) which supports an underscore-prefix escape hatch for intentionally-unused parameters that `tsc`'s own flags don't, and enabling them in `tsc` this early would add friction against no counterbalancing safety benefit. Worth revisiting once ESLint is set up, if Julia would rather enforce it at the compiler level instead.
+- **Testes:** deliberate-error check, exercising specifically the three newly-added flags that `strict` doesn't already cover (to prove they're enforced, not just declared, since `strict`'s own flags were already on before this task): a temporary file assigning an unchecked array index to a non-optional `string` (`noUncheckedIndexedAccess`), assigning `undefined` to an optional property (`exactOptionalPropertyTypes`), and dot-accessing an index-signature property (`noPropertyAccessFromIndexSignature`) — all three failed `tsc --noEmit` as expected (`TS2322`, `TS2375`, `TS4111`), file deleted immediately after, `tsc --noEmit` confirmed clean again. Re-ran the same `expo start --web` + headless-Chromium screenshot check from 1.1 afterward — bundles and renders identically, confirming the `tsconfig.json` change has no runtime effect (it's type-checking only; Metro transpiles via Babel, not `tsc`).
+- **Riscos:** defaulting to Expo's non-strict base config — must be set explicitly (the direct successor to `RISKS.md` R-12's "pay the rigor cost once, early" stance). *(Confirmed real and already mitigated — `expo/tsconfig.base` indeed doesn't set `strict`, see "Execução real" above.)*
 - **Impacto na arquitetura:** enforces the TypeScript-strict-mode equivalent of the original Swift 6 strict-concurrency decision.
 - **Execution Environment: Any Environment.**
 
