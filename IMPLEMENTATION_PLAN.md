@@ -2,7 +2,9 @@
 
 The technical execution plan for building the application, decomposed into 26 macro-stages and ~140 small, independent, verifiable tasks. This document is the **how and in what order**; `TASKS.md` remains the **what and priority** backlog.
 
-**Status: planning only.** No Expo project exists yet, no code has been written, no task is marked complete.
+**Status: implementation started.** Macro-stage 1, task 1.1 is done (`apps/mobile` exists and boots). Tasks 1.2–1.4 and every later task remain open — no task is marked complete beyond 1.1.
+
+**Physical-device verification note (added at task 1.1):** this Claude Code Remote session runs in an ephemeral container with no network path to Julia's iPhone or notebook, so any completion criterion requiring an on-device check (e.g., "scan the QR code in Expo Go") is split into two layers going forward — agreed with Julia 2026-08-07: (1) everything automatable in-session (compiles, boots, type-checks, a headless-browser screenshot of the web target as a visual proxy) is verified here and the task is marked done on that basis; (2) the physical-device confirmation itself is deferred to Julia, done whenever practical, and does not block subsequent tasks. Each task below notes explicitly when this split applies.
 
 **2026-08-07 — client platform migration to React Native + Expo (ADR-019–024).** This entire document was originally written against native Swift/SwiftUI. Per Julia's explicit instruction, it has been updated as follows, **not uniformly**:
 - **Macro-stages 1–4** (project creation, folder structure, monorepo package setup, local persistence) are **fully rewritten**, task-by-task, for Expo/TypeScript/monorepo/`expo-sqlite` — reviewed with the same rigor as the original authoring pass.
@@ -89,13 +91,17 @@ Unchanged from the original plan — macro-stage-to-`ROADMAP.md`-phase and `TASK
 **Depends on:** nothing (repository is clean per `MIGRATION_PLAN.md`).
 
 ### 1.1 — Create the Expo project
+- **Status: ✅ Done (2026-08-07), automated portion verified; physical-device confirmation pending Julia.**
 - **Objetivo:** create `apps/mobile` via `npx create-expo-app` with the TypeScript template, inside a monorepo root (workspace tooling set up in macro-stage 3).
 - **Criar:** `apps/mobile/app.json`, `apps/mobile/App.tsx` (or Expo Router's root layout, depending on the template chosen), `apps/mobile/assets/`.
 - **Modificar:** —
 - **Depende de:** —
 - **Critérios de conclusão:** `npx expo start` runs; the app opens in Expo Go on a physical iPhone and Android device (scanned via QR code) or in a dev client, showing a placeholder screen.
-- **Riscos:** picking a template that scaffolds unwanted boilerplate (e.g., a tab-navigation demo with sample screens) — verify template choice explicitly, strip demo content immediately.
-- **Testes:** manual run on a physical device via Expo Go; nothing else automatable yet.
+- **Execução real:** `npx create-expo-app@latest apps/mobile --no-agents-md` (default template = Expo Router + TypeScript, current SDK 57 — chosen because it matches ADR-022 already, not because it was the only option; confirmed via the CLI's own `--help`, since `docs.expo.dev` itself is unreachable from this network). The default template's demo tab screens/components (`explore.tsx`, `app-tabs.*`, `animated-icon.*`, `web-badge.tsx`, `hint-row.tsx`, `external-link.tsx`) and their demo-only images (`react-logo*`, `expo-badge*`, `logo-glow.png`, `tutorial-web.png`, `tabIcons/`) were removed via Expo's own bundled `reset-project.js` (choosing "delete" over "move to /example") plus a follow-up asset sweep, per this task's own risk note. `apps/mobile` ships its own generated `.gitignore` (node_modules/.expo/dist covered independently of the repository root's), so no stray build artifacts are tracked.
+- **Verificado nesta sessão (automatable layer):** `npx tsc --noEmit` — clean. `npx expo-doctor` — 18/20 checks pass; the 2 failures (`Check Expo config schema`, `Validate packages against React Native Directory`) are this network's egress proxy rejecting `docs.expo.dev`/schema-API hosts, not real project issues — confirmed by reading the raw error body. `npx expo start --web` — Metro bundles cleanly (858 modules), serves HTTP 200, and a headless-Chromium screenshot shows the expected placeholder text ("Edit src/app/index.tsx to edit this screen.") — the same headless-Chromium substitute agreed with Julia for this class of criterion.
+- **Pendente (physical-device layer, Julia):** scanning the Expo Go QR code on the iPhone and Android device — not executable from this ephemeral, non-networked container. Practical path when she wants to do it: `npx expo start --tunnel` from a live session (a public URL Expo Go can reach regardless of network separation) or waiting for an EAS build once macro-stage 26 is reached. Not a blocker for 1.2–1.4.
+- **Riscos:** picking a template that scaffolds unwanted boilerplate (e.g., a tab-navigation demo with sample screens) — verify template choice explicitly, strip demo content immediately. *(Materialized and mitigated — see "Execução real" above.)*
+- **Testes:** manual run on a physical device via Expo Go; nothing else automatable yet. *(Superseded in practice — see "Verificado nesta sessão" above; the manual device run is the one piece still outstanding.)*
 - **Impacto na arquitetura:** establishes `ARCHITECTURE.md` §1's physical root.
 - **Execution Environment: Any Environment.**
 
