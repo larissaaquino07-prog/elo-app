@@ -1,6 +1,6 @@
 # DESIGN_SYSTEM.md
 
-Visual identity for the application. Original design, not derived from any existing app's UI or brand (per project instructions) — including the discontinued Expo/React Native fitness prototype that previously lived in this repository (D1/ADR-001), whose palette and components are not reused here. Built for native iOS (SwiftUI, iOS 18+), full light **and** dark mode support (a deliberate change from the discontinued prototype, which was dark-only), and accessibility as a first-class constraint, not a pass at the end.
+Visual identity for the application. Original design, not derived from any existing app's UI or brand (per project instructions) — including the discontinued Expo/React Native fitness prototype that previously lived in this repository (ADR-017), whose palette and components are not reused here, and this remains true even though the client platform has since migrated back to React Native (ADR-019) for entirely unrelated reasons — see `ARCHITECTURE_DECISIONS.md`'s ADR-019–024 addendum. Built for **React Native + Expo** (iOS primary, Android and Web/PWA as of the 2026-08-06 platform migration — see `ARCHITECTURE.md` §1), full light **and** dark mode support (a deliberate change from the discontinued prototype, which was dark-only), and accessibility as a first-class constraint, not a pass at the end. Token *values* below are unchanged by the platform migration; only the SwiftUI-specific implementation notes were updated to their React Native equivalents.
 
 ---
 
@@ -54,16 +54,18 @@ All text-on-background pairs meet **WCAG AA (≥4.5:1)** at minimum; verified pe
 
 ## 3. Typography
 
-System font (SF Pro, via Dynamic Type) — not a custom typeface. This is a deliberate accessibility and longevity choice: Dynamic Type support and correct VoiceOver behavior come free, and the font renders identically well in a future macOS app (`ARCHITECTURE.md` §6).
+System font (San Francisco on iOS, Roboto on Android, the platform default stack on web) with React Native's built-in font-scaling respecting the OS-level accessibility text-size setting — not a custom typeface. This is a deliberate accessibility and longevity choice: platform-native font scaling and correct screen-reader behavior come largely free, and the type scale below renders consistently across every target this app now ships to.
 
-| Style | iOS text style mapping | Use |
+| Style | Size/weight mapping | Use |
 |---|---|---|
-| Display | `.largeTitle`, semibold | Onboarding, milestone screens |
-| Title | `.title2`, semibold | Screen headers |
-| Headline | `.headline` | Card titles, section headers |
-| Body | `.body` | Primary reading text, chat messages |
-| Callout | `.callout` | Secondary conversational text |
-| Caption | `.caption` | Metadata, timestamps, labels |
+| Display | 34pt, semibold | Onboarding, milestone screens |
+| Title | 22pt, semibold | Screen headers |
+| Headline | 17pt, semibold | Card titles, section headers |
+| Body | 17pt, regular | Primary reading text, chat messages |
+| Callout | 16pt, regular | Secondary conversational text |
+| Caption | 12pt, regular | Metadata, timestamps, labels |
+
+Each maps to a React Native `Text` style respecting the device's font-scale multiplier (`PixelRatio.getFontScale()`), the direct equivalent of SwiftUI's automatic Dynamic Type mapping the original design relied on.
 
 Chat/conversation text uses `Body` at a very slightly increased line height (1.3×) versus UI chrome — optimized for reading a conversation, not scanning a form.
 
@@ -94,19 +96,19 @@ Chat/conversation text uses `Body` at a very slightly increased line height (1.3
 - **Voice record control**: a single circular control with explicit, animated states — `idle` → `listening` → `thinking` → `speaking` — each with a distinct but subtle motion treatment (§10) and a VoiceOver-announced state change (§11), since this is the primary interaction surface for the app's highest-priority feature (Principle 4).
 
 ### 5.4 Navigation
-- **Native `TabView` / `NavigationStack`**, not a custom-built tab bar — a deliberate departure from the discontinued prototype's custom blur tab bar. Native components come with correct accessibility, Dynamic Type, and platform-convention behavior for free, and require no bespoke maintenance across iOS versions (directly serves `RISKS.md` R-04, maintainability).
-- Tabs: Coach (conversation), Progress, Memory (searchable history/vocabulary), Profile — four, matching the app's actual pillars (`PROJECT.md` §6), not padded out for symmetry.
+- **Expo Router** (`ARCHITECTURE_DECISIONS.md` ADR-022), not a custom-built tab bar — a deliberate departure from the discontinued prototype's custom blur tab bar, chosen fresh for its own current merits (file-based routing, typed routes, built on React Navigation, actively maintained by the Expo team), not because that prototype once used a related library. Comes with solid accessibility and platform-convention behavior out of the box, and requires no bespoke maintenance across OS versions (directly serves `RISKS.md` R-04, maintainability).
+- Tabs: Coach (conversation), Progress, Memory (searchable history/vocabulary), Profile — four, matching the app's actual pillars (`PROJECT.md` §6), not padded out for symmetry. On web/PWA, the Coach tab's voice mode is unavailable (companion-surface scope, `ARCHITECTURE_DECISIONS.md` ADR-024) — text sessions remain fully available there.
 
 ## 6. Animation & transitions
 
-Native SwiftUI animations only — no custom animation engine.
+React Native Reanimated for every animation below — chosen specifically because it runs on the UI thread (worklets), keeping motion smooth even under JS-thread load, a real concern in this stack that didn't exist in the original native-SwiftUI design.
 
 | Moment | Treatment |
 |---|---|
 | Message appearing | Quick fade + slight rise, 200ms, `easeOut` |
 | Voice state change | Spring, response 0.4 / damping 0.8 — the control should feel alive, not mechanical |
 | Progress ring / score update | Animated fill over ~600ms, `easeInOut` — value changes are never instant jumps |
-| Screen transitions | Native `NavigationStack` push/pop, no custom overrides |
+| Screen transitions | Expo Router's default push/pop, no custom overrides |
 | Streak/milestone celebration | A single, restrained moment (subtle scale + `accentWarm` glow, ~400ms) — not a full-screen confetti overlay; matches §1's "quiet craft" principle |
 
 All durations/curves above are tokens, not per-view magic numbers, so they stay consistent as new screens are added.
@@ -117,7 +119,7 @@ All durations/curves above are tokens, not per-view magic numbers, so they stay 
 - Success notification haptic: correct/mastered/streak-continued moments.
 - Warning haptic (not error): a gentle correction — deliberately the *warning*, not *error*, haptic category, consistent with the non-punitive tone (`PROMPT_ENGINE.md` §3).
 - Selection feedback: pickers, toggles, tab switches.
-- Respects the system Reduce Motion / haptics-off accessibility settings automatically (native `UIFeedbackGenerator` behavior).
+- Respects the system Reduce Motion / haptics-off accessibility settings automatically (`expo-haptics`, the direct replacement for `UIFeedbackGenerator` — same categories: light impact, success/warning notification, selection). **Web/PWA has no haptics API** — silently a no-op there, not an error state, consistent with the companion-surface scope (`ARCHITECTURE_DECISIONS.md` ADR-024).
 
 ## 8. Feedback & states
 
@@ -135,16 +137,17 @@ Motion is meaningful, not decorative — every animation in §6 exists to commun
 
 ## 11. Accessibility
 
-- **Dynamic Type**: fully supported up to accessibility sizes (AX1–AX5); layouts use adaptive stacks, not fixed pixel widths, so nothing clips or truncates at large sizes.
-- **VoiceOver**: every interactive element has a label; the voice record control (§5.3) announces its own state changes (`"Listening"`, `"Coach is thinking"`, `"Coach is speaking"`) so the app's core interaction is fully usable non-visually.
+- **Font scaling**: fully supported up to the largest OS accessibility text sizes on every platform (iOS Dynamic Type, Android font scale, browser zoom/text-size on web); layouts use adaptive stacks, not fixed pixel widths, so nothing clips or truncates at large sizes.
+- **Screen readers**: every interactive element has an `accessibilityLabel`; the voice record control (§5.3) announces its own state changes (`"Listening"`, `"Coach is thinking"`, `"Coach is speaking"`) via `AccessibilityInfo.announceForAccessibility` so the app's core interaction is fully usable non-visually — on **VoiceOver (iOS), TalkBack (Android), and standard screen readers on web**, a real parity gain from the platform migration that wasn't previously in scope.
 - **Contrast**: WCAG AA (≥4.5:1) verified per color pair in §2, both modes.
 - **Tap targets**: minimum 44×44pt everywhere, no exceptions.
-- **Reduce Motion**: every spring/fade animation in §6 has a Reduce-Motion-respecting fallback (cross-fade or instant state change instead of spring/scale) via `UIAccessibility.isReduceMotionEnabled`.
-- **Reading order**: conversation transcripts read in natural chronological order under VoiceOver, including inline corrections (§3-format text is not a separate, out-of-order element).
+- **Reduce Motion**: every Reanimated animation in §6 has a Reduce-Motion-respecting fallback (cross-fade or instant state change instead of spring/scale) via `AccessibilityInfo.isReduceMotionEnabled()`, React Native's cross-platform equivalent of `UIAccessibility.isReduceMotionEnabled`.
+- **Reading order**: conversation transcripts read in natural chronological order under screen readers, including inline corrections (§3-format text is not a separate, out-of-order element).
+- **Web/PWA-specific**: standard web accessibility practices apply (semantic HTML via React Native Web's DOM output, keyboard navigability) — the companion-surface scope (`ARCHITECTURE_DECISIONS.md` ADR-024) narrows *feature* availability, not accessibility rigor for whatever is available there.
 
 ## 12. Light & dark mode
 
-Both fully specified (§2), resolved automatically by the OS via semantic color assets — not a manually-toggled in-app setting overriding system state, and not dark-only (a deliberate departure from the discontinued prototype). Every component in §5 is verified to render correctly, at full contrast, in both.
+Both fully specified (§2), resolved automatically via React Native's `useColorScheme()` hook tracking the OS-level appearance setting — the direct cross-platform equivalent of the originally-planned semantic color assets — not a manually-toggled in-app setting overriding system state, and not dark-only (a deliberate departure from the discontinued prototype). Every component in §5 is verified to render correctly, at full contrast, in both, on every target platform.
 
 ## 13. Relationship to other documents
 

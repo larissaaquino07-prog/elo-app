@@ -78,6 +78,8 @@ Format per decision: ID, Date, Problem, Alternatives Considered, Decision, Justi
 **Consequences:** More upfront structure (protocols, mappers, a composition root) than a quick MVVM-only build.
 **Future impacts:** Directly enables ADR-002's decoupling requirement and ADR-013's cross-platform reuse.
 
+> **2026-08-06 technology-note update (client platform migration to React Native + Expo, ADR-019):** the pattern stays fully valid — this decision is not superseded. "ViewModel" now refers to a Zustand store + custom hook rather than a Swift `@Observable` class; same role in the MVVM pattern, different syntax. See `RN_EXPO_MIGRATION_PLAN.md` §1.1.
+
 ---
 
 ## ADR-006 — Repository abstraction over SwiftData + Supabase (Architecture Review finding)
@@ -91,6 +93,8 @@ Format per decision: ID, Date, Problem, Alternatives Considered, Decision, Justi
 **Justification:** Without this fix, swapping or restructuring the local persistence layer later (e.g., adding a second local cache strategy, or a future platform's different local store) would require touching every ViewModel. The fix costs a thin protocol + mapper layer now.
 **Consequences:** One additional abstraction layer to maintain; slightly more boilerplate per entity type.
 **Future impacts:** Makes the Data layer swappable independently of Presentation — required for ADR-013 (macOS reuse) to actually hold.
+
+> **2026-08-06 technology-note update (client platform migration to React Native + Expo, ADR-019):** the rule (Presentation never touches persistence directly) is unchanged and, if anything, more important in this stack — TypeScript/JavaScript makes it easier to accidentally reach past an abstraction than Swift's module system did. `SwiftData`/the Supabase Swift SDK become `expo-sqlite` (optionally + Drizzle ORM)/`@supabase/supabase-js`; the compile-time enforcement mechanism is replaced by ADR-021. See `RN_EXPO_MIGRATION_PLAN.md` §1.1/§3.
 
 ---
 
@@ -164,6 +168,8 @@ Format per decision: ID, Date, Problem, Alternatives Considered, Decision, Justi
 **Consequences:** One extra native permission/UX flow to design (lock timeout behavior, fallback to passcode).
 **Future impacts:** None negative; purely additive security.
 
+> **2026-08-06 technology-note update (client platform migration to React Native + Expo, ADR-019):** the decision and its reasoning are unchanged and platform-agnostic; only the implementation API changes — `LocalAuthentication` → `expo-local-authentication` (iOS/Android). The web/PWA target has no biometric equivalent; that gap is a separate, new decision (ADR-024), not a change to this one. See `RN_EXPO_MIGRATION_PLAN.md` §1.3.
+
 ---
 
 ## ADR-012 — Dependency Injection: composition root + constructor injection, no DI framework
@@ -178,6 +184,8 @@ Format per decision: ID, Date, Problem, Alternatives Considered, Decision, Justi
 **Justification:** For a solo-maintained, multi-year codebase, explicit constructor injection is the most readable option for a future maintainer (including a future AI coding session with no memory of this one) — no hidden wiring, no framework-specific knowledge required to trace how any object was constructed.
 **Consequences:** Slightly more manual wiring code in `AppContainer` as the object graph grows; judged an acceptable, very visible cost.
 **Future impacts:** Keeps unit testing straightforward (mocks passed directly to initializers) — reinforces `ARCHITECTURE.md` §12.
+
+> **2026-08-06 technology-note update (client platform migration to React Native + Expo, ADR-019):** the principle (no DI framework, one explicit composition root) is unchanged; the mechanism becomes a single TypeScript module (e.g. `container.ts`) instead of a Swift `AppContainer` class — same discipline, same future-maintainer-readability goal, different syntax. See `RN_EXPO_MIGRATION_PLAN.md` §1.1.
 
 ---
 
@@ -270,6 +278,95 @@ Format per decision: ID, Date, Problem, Alternatives Considered, Decision, Justi
 
 ---
 
+## ADR-019 — Client platform: React Native + Expo instead of native Swift/SwiftUI
+
+**Date:** 2026-08-06
+**Problem:** ADR-001 chose native Swift/SwiftUI on the premise of an iOS-only target. That premise no longer holds: the confirmed device requirements are an iPhone **and** a Samsung Windows notebook, permanently, for the whole project lifecycle, with no macOS access anywhere in that lifecycle. SwiftUI cannot run on Windows under any circumstance — this is not a tooling gap to work around, it's a platform fact that makes ADR-001's decision structurally incompatible with the actual requirement.
+**Alternatives considered:**
+1. Keep native Swift/SwiftUI for iOS only, find a separate solution for the Windows notebook (e.g., a second, entirely different codebase) — rejected outright: doubles the maintenance burden for a solo, AI-assisted project (`RISKS.md` R-04), the opposite of this project's stated priorities.
+2. Flutter — evaluated in full in `CLIENT_PLATFORM_MIGRATION_ANALYSIS.md`. Has official, stable native Windows desktop support (a genuine edge for the notebook requirement specifically) but weaker AI-coding-assistant proficiency (Dart vs. TypeScript) and no first-party no-Mac-needed iOS build pipeline equivalent to EAS Build.
+3. React Native + Expo — evaluated in the same analysis. Windows coverage is web/PWA-based (React Native Web), not a true native desktop binary, but Julia confirmed this is fully acceptable given the notebook's role as a companion surface, not the primary device.
+**Decision:** Option 3 — React Native + Expo.
+**Justification:** Per `CLIENT_PLATFORM_MIGRATION_ANALYSIS.md` §6: `RISKS.md` R-04 (solo, AI-assisted, multi-year maintenance) is this project's most important non-functional constraint, and TypeScript's AI-tooling depth and ecosystem size serve it more directly than Dart's would. EAS Build/Submit is a first-party, purpose-built solution to the "no Mac access" constraint, more integrated than assembling third-party cloud CI for Flutter. The Windows-notebook gap is real but not fatal for this app's actual UI shape (conversational, dashboard-oriented, not graphics-intensive) — confirmed explicitly acceptable by Julia.
+**Consequences:** SwiftData, WidgetKit-as-a-first-class-feature, and every Swift-specific native-framework decision made under ADR-001 need replacement or deferral — the full scope is in `RN_EXPO_MIGRATION_PLAN.md`. Backend (Supabase, Edge Functions, the Postgres schema, `PROMPT_ENGINE.md`, `LEARNING_ENGINE.md`) is entirely unaffected, having been deliberately built platform-agnostic from the start (ADR-013's original reasoning, which turned out to matter sooner than expected).
+**Future impacts:** Supersedes ADR-001. The platform-agnostic-backend principle is validated by this very migration being possible without touching the backend at all — strengthens rather than weakens the case for keeping that principle going forward.
+
+---
+
+## ADR-020 — Local persistence: `expo-sqlite` (+ Drizzle ORM) as the SwiftData replacement
+
+**Date:** 2026-08-06
+**Problem:** ADR-003 named SwiftData as the local cache engine specifically. SwiftData does not exist outside Apple platforms, so it cannot survive ADR-019's platform change; a replacement local storage engine is needed that preserves ADR-003's actual principle (Supabase as source of truth, local cache for offline use).
+**Alternatives considered:**
+1. `expo-sqlite` alone, raw SQL strings — Julia's explicitly named baseline technology; simplest, no additional dependency, but loses SwiftData's compile-time query/schema safety.
+2. `expo-sqlite` + Drizzle ORM (`drizzle-orm`'s Expo SQLite driver) — adds a thin, type-safe query layer and a migration-file mechanism on top of the same engine.
+3. WatermelonDB — a reactive, sync-oriented local database evaluated in `CLIENT_PLATFORM_MIGRATION_ANALYSIS.md` §3.3 as a strong conceptual fit for offline-first sync, but not on Julia's named technology list.
+**Decision:** Option 2 — `expo-sqlite` as the engine, Drizzle ORM as the query/schema layer on top of it.
+**Justification:** `expo-sqlite` was explicitly specified. Drizzle is the closest available replacement for the type-safety value SwiftData provided (`ARCHITECTURE_DECISIONS.md` ADR-018's original motivation was partly about safety guarantees, not just boundary enforcement), and gives a concrete migration-file mechanism matching `ARCHITECTURE.md` §4's requirement — without displacing the explicitly chosen storage engine. Approved in `RN_EXPO_MIGRATION_PLAN.md` §1.2 Proposal A.
+**Consequences:** The `SyncCoordinator` (idempotent upsert, watermark pull, conflict rules — ADR-007) is unaffected in design, hand-built on top of this engine exactly as it would have been on top of SwiftData; only the mapper layer's implementation details change. Drizzle's Expo SQLite support is younger than its Postgres/Node drivers — worth a short technical spike before full commitment, not a blind adopt.
+**Future impacts:** Supersedes the local-cache-engine portion of ADR-003; ADR-003's "Supabase as source of truth" principle is otherwise unchanged and unsuperseded.
+
+---
+
+## ADR-021 — Domain/Data boundary enforcement: monorepo workspace packages + lint rules
+
+**Date:** 2026-08-06
+**Problem:** ADR-018 enforced the Domain/Data boundary via two Swift Package Manager targets, making a violation a true compiler error. That mechanism doesn't exist in a TypeScript/React Native project; a replacement enforcement strategy is needed, or ADR-006's core guarantee (Presentation never touches persistence directly) degrades back to convention-only, exactly what ADR-006 was written to fix in the first place.
+**Alternatives considered:**
+1. No formal enforcement, rely on code review discipline alone — rejected: this is precisely the state ADR-006 already found and fixed once; regressing to it defeats that finding.
+2. A single package with folder-only `domain/`/`data/` separation, checked by a lint rule (`eslint-plugin-boundaries` or equivalent import-restriction rule) — lint-time enforcement, weaker than a compiler error but real and CI-checkable.
+3. A monorepo with separate workspace packages (e.g. `packages/core` split into a dependency-free domain subpackage and a data subpackage with real `package.json` dependencies on SQLite/Supabase) plus the same lint rule — combines a real dependency-graph failure (a domain file literally cannot resolve an import to a package it doesn't depend on) with the lint rule as defense-in-depth.
+**Decision:** Option 3.
+**Justification:** Approved in `RN_EXPO_MIGRATION_PLAN.md` §1.2 Proposal C. A missing `package.json` dependency turns an accidental cross-boundary import into a real module-resolution failure, not just a style-guide violation — closer in spirit to ADR-018's compile-time guarantee than a lint rule alone would be, even though it's not a strict compiler error in the Swift sense. Also directly strengthens ADR-013's original goal (share Domain+Data across future platforms): a workspace package is consumable by any future Node-capable client with less platform-specific glue than Swift Package Manager ever offered.
+**Consequences:** More monorepo tooling setup than a single-app-folder project (workspace configuration, possibly Turborepo for build orchestration if complexity grows) — a real, upfront cost, judged worthwhile for the same reason ADR-018 was.
+**Future impacts:** Supersedes ADR-018. Updates ADR-013's mechanism (Swift Package → monorepo workspace package) without changing ADR-013's underlying goal, which this decision serves at least as well, arguably better.
+
+---
+
+## ADR-022 — Navigation: Expo Router
+
+**Date:** 2026-08-06
+**Problem:** ADR-016 chose native `TabView`/`NavigationStack` specifically for the free accessibility and platform-convention behavior SwiftUI provided. That reasoning is SwiftUI-specific and doesn't transfer to React Native; a navigation library decision is needed for the new stack.
+**Alternatives considered:**
+1. React Navigation directly (the library the discontinued Expo fitness prototype used, and the library Expo Router itself is built on) — mature, flexible, but requires more manual setup and doesn't give typed, file-based routes.
+2. A custom-built navigation layer, matching ADR-016's spirit of "build exactly what the design needs" — rejected for the same reason ADR-016 itself rejected a custom-built nav bar: reimplementing accessibility/platform-convention behavior that a maintained library already provides is ongoing cost with no functional gain, especially costly for a solo maintainer (`RISKS.md` R-04).
+3. Expo Router — file-based routing (routes are source files, not a manually maintained tree), built on React Navigation, actively maintained by the Expo team, with typed-route support in recent SDKs.
+**Decision:** Option 3.
+**Justification:** Closest available equivalent to ADR-016's actual values (low custom-maintenance surface, strong out-of-the-box accessibility/convention behavior, active first-party maintenance) within the React Native ecosystem. File-based routing is also a natural fit for Expo Router's own tooling (deep linking, universal links across iOS/Android/Web) with no extra configuration.
+**Consequences:** The four-tab structure from `DESIGN_SYSTEM.md` §5.4 (Coach, Progress, Memory, Profile) is expressed as a file-based route group instead of a SwiftUI `TabView` declaration — same visible structure, different authoring mechanism. Explicit note: this specifically does **not** reuse the discontinued fitness prototype's React Navigation setup (ADR-017) — Expo Router is chosen fresh, on its own current technical merits, for this project's own navigation structure.
+**Future impacts:** Supersedes ADR-016.
+
+---
+
+## ADR-023 — Crash reporting: minimal Sentry React Native integration, scoped to crashes/errors only
+
+**Date:** 2026-08-06
+**Problem:** `OBSERVABILITY.md` §5 named `MetricKit` — an Apple-only, zero-dependency, on-device diagnostics framework — as the primary crash-reporting mechanism. No equivalent exists across iOS+Android+Web from the React Native/Expo team itself; some crash-visibility mechanism is still needed for a solo maintainer (`RISKS.md` R-04) to know when and why the app fails in the field.
+**Alternatives considered:**
+1. A hand-rolled error boundary + manual log-shipping to the existing Supabase `usage_events`-style table — zero new dependency, consistent with `OBSERVABILITY.md` §1's "no third-party analytics SDK" principle, but loses native crash-stack-trace symbolication, a meaningful diagnostic loss.
+2. Expo's own error-reporting-adjacent tooling — thinner and less mature than dedicated crash-reporting SDKs.
+3. A minimal Sentry React Native integration, deliberately scoped to crash/error capture only — explicitly not session replay, not full product analytics.
+**Decision:** Option 3.
+**Justification:** Approved explicitly by Julia in response to `RN_EXPO_MIGRATION_PLAN.md` §1.2 Proposal D, precisely because this is the one proposal in that document that adds a new third-party dependency in a category (`OBSERVABILITY.md`/ADR-015) this project had previously and deliberately avoided — the scope is drawn narrowly (crash/error only) specifically to not conflict with ADR-015's actual decision (in-house `usage_events` analytics, which stays as-is, unaffected).
+**Consequences:** One new third-party SDK dependency, the first of its kind in this project's client-side stack. Symbolication/source-map upload needs to be part of the EAS Build pipeline (a new build-step consideration for `IMPLEMENTATION_PLAN.md`'s distribution macro-stage).
+**Future impacts:** Does not supersede ADR-015 — narrows its scope explicitly rather than reopening the broader question of third-party analytics, which remains decided against.
+
+---
+
+## ADR-024 — Web/PWA capability-parity scope: companion-surface framing
+
+**Date:** 2026-08-06
+**Problem:** The web/PWA target (serving the Samsung notebook, per ADR-019) has no equivalent for several native capabilities the iOS/Android targets have: Keychain-equivalent secure storage, biometric authentication, reliable background sync, and offline speech recognition. Left undecided, this risks either silently degraded behavior nobody planned for, or wasted effort chasing partial/fragile web equivalents (e.g., WebAuthn for biometrics) for marginal benefit.
+**Alternatives considered:**
+1. Pursue full capability parity on web (WebAuthn for biometrics, Service Worker `periodicSync` for background tasks, cloud-based STT for offline-equivalent voice) — rejected: WebAuthn specifically requires user-managed passkeys/security keys, a materially different and heavier UX than native biometrics, disproportionate effort for a secondary surface; Service Worker background sync is Chrome-family-only and best-effort at best; cloud STT isn't actually offline, defeating the fallback's purpose.
+2. Treat the web/PWA target as a **companion surface** — progress review, learning history, and text-based sessions — while the iPhone remains the primary, full-capability surface (voice, biometric app-lock, reliable background sync).
+**Decision:** Option 2.
+**Justification:** Explicitly confirmed by Julia: "notebook como superfície complementar (revisão de progresso, histórico, sessões de texto), não paridade total. iPhone continua com a experiência completa (voz, biometria, sync em background). Sem WebAuthn." Matches `PROJECT_BRIEF.md`'s original framing of a personal coach used daily, most plausibly on the phone, and avoids disproportionate engineering effort for a secondary surface.
+**Consequences:** `NON_FUNCTIONAL_REQUIREMENTS.md` and `ARCHITECTURE.md` need explicit per-platform scoping wherever a target previously assumed uniform capability (biometric lock timeout, background sync frequency, voice availability). The web app-lock, if any, uses a PIN/password fallback rather than biometrics.
+**Future impacts:** Revisit only if the web/PWA surface's role in the product changes materially (e.g., if the notebook becomes a primary rather than companion device) — not expected under the current product framing.
+
+---
+
 ## Approval Checklist — 2026-08-06 Architecture Review
 
 Status ahead of freezing the architecture for Phase 0 implementation.
@@ -327,3 +424,27 @@ With the architecture approved, Julia requested a final refinement pass to bring
 A consistency pass was performed across all prior documents to remove duplication: `ARCHITECTURE.md` no longer restates formulas (`LEARNING_ENGINE.md`), latency/coverage numbers (`NON_FUNCTIONAL_REQUIREMENTS.md`), or observability detail (`OBSERVABILITY.md`) that now live in their dedicated canonical documents — it points to them instead. One genuine inconsistency was found and fixed in the process: `ARCHITECTURE.md` §5.3 referenced "(§11)" for the proactive-event-prep feature, which — read within `ARCHITECTURE.md` itself — pointed at the wrong section (Scalability, not a features list); corrected to explicitly cite `PROJECT.md` §11, where that feature is actually described.
 
 **This addendum, combined with the original review above, marks the full documentation set (`PROJECT.md`, `PROJECT_BRIEF.md`, `ARCHITECTURE.md`, `ARCHITECTURE_DECISIONS.md`, `ROADMAP.md`, `TASKS.md`, `RISKS.md`, `PROMPT_ENGINE.md`, `LEARNING_ENGINE.md`, `DESIGN_SYSTEM.md`, `NON_FUNCTIONAL_REQUIREMENTS.md`, `OBSERVABILITY.md`) as the final baseline before implementation begins.**
+
+---
+
+## Addendum — 2026-08-06 Client Platform Migration (React Native + Expo)
+
+After the architecture was frozen and `IMPLEMENTATION_PLAN.md` was written against native Swift/SwiftUI, an attempt to begin macro-stage 1 surfaced a fact that changed the client-platform decision itself: this Claude Code Remote session (and every environment then available) runs on Linux, with no Xcode, Swift toolchain, or iOS Simulator. Julia clarified the actual, permanent constraint: an iPhone **and** a Samsung Windows notebook, with no macOS access anywhere in the project's lifecycle — not a temporary tooling gap, a structural incompatibility with ADR-001's premise, since SwiftUI cannot run on Windows under any circumstance.
+
+Two analysis documents preceded this addendum:
+- `CLIENT_PLATFORM_MIGRATION_ANALYSIS.md` — compared React Native (Expo) and Flutter across ten dimensions and recommended React Native + Expo, primarily on `RISKS.md` R-04 (AI-assisted maintainability) and EAS Build's first-party no-Mac-needed iOS pipeline.
+- `RN_EXPO_MIGRATION_PLAN.md` — the full technical migration plan: every mandated technology decision (§1.1), the component-replacement mapping for every Swift-specific capability (§1.3), five proposed architectural improvements presented for approval rather than auto-implemented (§1.2), the complete ADR-by-ADR review this addendum's new ADRs (019–024) execute, and the per-document migration plan (§5) that `PROJECT.md`, `ARCHITECTURE.md`, `DESIGN_SYSTEM.md`, `NON_FUNCTIONAL_REQUIREMENTS.md`, `OBSERVABILITY.md`, `ROADMAP.md`, `TASKS.md`, `IMPLEMENTATION_PLAN.md`, and `README.md` are updated against in this same pass.
+
+**This is explicitly a technology substitution of the existing architecture, not a new project and not a reversion to the discontinued Expo fitness prototype (ADR-017).** ADR-017 remains fully valid and is reaffirmed here, not superseded: its declaration that the prior project is "completely independent, closed, and without influence over any future technical decision" holds exactly as written, and applies with undiminished force to this second pivot. React Native is being adopted now on its own current technical merits, evaluated fresh in `CLIENT_PLATFORM_MIGRATION_ANALYSIS.md` against this project's actual requirements — not because the discontinued prototype once used it. None of that prototype's code, folder structure, component patterns, naming, navigation setup (React Navigation, superseded here by Expo Router per ADR-022, chosen independently), dependencies, or data model is reused, referenced, or considered "valid again" by this decision. Every new ADR in this addendum (019–024) states its own alternatives and justification from this project's current documentation and requirements alone, per ADR-017's standing rule that "it's already there" — true of the old prototype's RN usage as much as anything else in that discarded history — is not sufficient grounds for reuse.
+
+**Confirmed technology decisions (ADR-019 through ADR-024):**
+- ADR-019 — React Native + Expo as the client platform, superseding ADR-001.
+- ADR-020 — `expo-sqlite` + Drizzle ORM as the local persistence engine, superseding ADR-003's local-cache portion.
+- ADR-021 — Monorepo workspace packages + lint-enforced boundary, superseding ADR-018 and updating ADR-013's mechanism.
+- ADR-022 — Expo Router for navigation, superseding ADR-016.
+- ADR-023 — A minimal, crash-only Sentry React Native integration, narrowing (not superseding) ADR-015.
+- ADR-024 — Web/PWA as a companion surface, not full capability parity with iOS — a new decision with no predecessor.
+
+ADR-005, ADR-006, ADR-011, and ADR-012 received technology-note updates in place (their actual decisions never depended on the Apple ecosystem specifically) rather than being superseded. WidgetKit (`TASKS.md` T5-04) is deferred to post-launch, not cut — it requires isolated native Swift code regardless of client framework, an iOS-platform fact no cross-platform choice changes.
+
+**This addendum, together with the ADRs above, is the governing record for the ongoing per-document migration** carried out immediately after it in this same work session — see each updated document's own note pointing back here for its specific changes.

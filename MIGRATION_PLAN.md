@@ -2,6 +2,8 @@
 
 Migration/cleanup plan for the repository, requested as a final safety step before executing `REPOSITORY_AUDIT.md`'s conclusions and ADR-017. **This document is a plan only — no file has been removed, adapted, or created on disk as a result of it.** Execution begins only after explicit approval, per your instruction.
 
+**Note (2026-08-06, added later, content otherwise unchanged):** a second, unrelated pivot occurred the same day — the client platform decided during the architecture review (native Swift/SwiftUI) was superseded by React Native + Expo (`ARCHITECTURE_DECISIONS.md` ADR-019–024). That decision does not revisit or reopen anything in this document: the cleanup described and executed here remains exactly as it happened, and ADR-017's independence declaration (§12.1 below) applies with undiminished force to the second pivot too — see `RN_EXPO_MIGRATION_PLAN.md` §0 for the explicit reasoning on why "React Native is back" is not "the old project is back."
+
 ---
 
 ## 1. Scope and method
