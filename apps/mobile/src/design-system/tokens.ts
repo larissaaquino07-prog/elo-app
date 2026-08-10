@@ -1,11 +1,5 @@
-/**
- * Design tokens transcribed directly from DESIGN_SYSTEM.md §2–4.
- *
- * These values are the approved source of truth (not invented here) and are
- * expected to survive into the real implementation. The *usage* of these
- * tokens in this prototype (src/app/(tabs)) is throwaway — see the banner
- * in each screen — but the token values themselves are not.
- */
+// Design tokens — DESIGN_SYSTEM.md §2–4. Values transcribed directly from
+// the approved source of truth, not invented here.
 
 export const colors = {
   dark: {

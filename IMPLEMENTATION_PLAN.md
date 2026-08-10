@@ -2,7 +2,7 @@
 
 The technical execution plan for building the application, decomposed into 26 macro-stages and ~140 small, independent, verifiable tasks. This document is the **how and in what order**; `TASKS.md` remains the **what and priority** backlog.
 
-**Status: implementation started.** Macro-stage 1, tasks 1.1–1.3 are done (`apps/mobile` exists, boots, type-checks under full TypeScript strictness, and both the repository-root and `apps/mobile` `.gitignore` files are verified against real generated output). Task 1.4 and every later task remain open.
+**Status: implementation started.** Macro-stage 1 (project skeleton) and macro-stage 2 (Presentation folder skeleton, file-header convention) are closed. Macro-stage 3 (monorepo workspace) in progress. Macro-stages 4+ remain open.
 
 **Physical-device verification note (added at task 1.1):** this Claude Code Remote session runs in an ephemeral container with no network path to Julia's iPhone or notebook, so any completion criterion requiring an on-device check (e.g., "scan the QR code in Expo Go") is split into two layers going forward — agreed with Julia 2026-08-07: (1) everything automatable in-session (compiles, boots, type-checks, a headless-browser screenshot of the web target as a visual proxy) is verified here and the task is marked done on that basis; (2) the physical-device confirmation itself is deferred to Julia, done whenever practical, and does not block subsequent tasks. Each task below notes explicitly when this split applies.
 
@@ -134,15 +134,18 @@ Unchanged from the original plan — macro-stage-to-`ROADMAP.md`-phase and `TASK
 - **Execution Environment: Any Environment.**
 
 ### 1.4 — Commit the empty, buildable project
+- **Status: ✅ Done (2026-08-10).**
 - **Objetivo:** get a clean, working baseline into version control.
 - **Criar:** the full project skeleton from 1.1–1.3.
 - **Modificar:** —
 - **Depende de:** 1.1–1.3
 - **Critérios de conclusão:** pushed to the working branch; a fresh clone runs via `npx expo start` without manual setup beyond `npm install`.
-- **Riscos:** accidentally committing `node_modules/` or `.expo/` — verify against 1.3.
-- **Testes:** fresh-clone run test.
+- **Execução real:** already pushed incrementally across tasks 1.1–1.3's own commits (each verified and pushed at the time). This task's own remaining job — the fresh-clone test — run explicitly now: `git clone --branch claude/project-analysis-planning-bmwq6l --single-branch` into a scratch directory, `npm install` inside `apps/mobile` with no other setup, `tsc --noEmit` clean, `expo start --web` bundled (1197 modules) and served HTTP 200. Scratch clone deleted afterward.
+- **Riscos:** accidentally committing `node_modules/` or `.expo/` — verify against 1.3. *(Held — the fresh clone had nothing to install beyond `npm install` itself, confirming 1.3's `.gitignore` fix works end-to-end, not just in the working copy it was written in.)*
 - **Impacto na arquitetura:** none.
 - **Execution Environment: Any Environment.**
+
+**Macro-stage 1 — status: ✅ closed (2026-08-10).** All four tasks done; exit criteria met for the automated layer (physical-device confirmation still pending Julia, per the split agreed at task 1.1 — not a blocker).
 
 **Macro-stage exit criteria:** empty Expo app runs on a physical iOS and Android device via Expo Go, TypeScript strict mode verified on, committed and pushed.
 
@@ -154,25 +157,31 @@ Unchanged from the original plan — macro-stage-to-`ROADMAP.md`-phase and `TASK
 **Depends on:** macro-stage 1.
 
 ### 2.1 — Create the Presentation folder skeleton
+- **Status: ✅ Done (2026-08-10).**
 - **Objetivo:** `apps/mobile/app/` (Expo Router routes), `apps/mobile/src/composition/`, `apps/mobile/src/features/{onboarding,coach,progress,memory,profile}/`, `apps/mobile/src/design-system/`.
 - **Criar:** the folder groups, each with a minimal placeholder file carrying a one-line comment stating its purpose and pointing at the relevant `ARCHITECTURE.md`/`PROJECT.md` section.
 - **Modificar:** —
 - **Depende de:** 1.1
 - **Critérios de conclusão:** structure matches `ARCHITECTURE.md` §1/§2's layout; `npx expo start` still runs with the new (near-empty) folders.
-- **Riscos:** drifting from the documented structure "for convenience" — forbidden under ADR-017's continuing spirit even in a fully new codebase.
-- **Testes:** dev-server run check.
+- **Execução real:** the actual generated project had routes at `apps/mobile/src/app/` (Expo Router's `src/` auto-detection, `create-expo-app`'s current default) — checked directly rather than assumed to already match, and it didn't. Moved to `apps/mobile/app/` (top level) per this task's own literal spec, since `ARCHITECTURE.md` §1/§2 doesn't itself resolve the ambiguity and this task's own risk note forbids drifting "for convenience." The 2026-08-10 visual/interaction prototype (`(tabs)` group, fake chat, `PROTOTYPE.md`) is removed — its stated purpose (early feedback) was served, and task 2.1 calls for minimal placeholders, not interactive mockups; its one durable piece, `src/theme/tokens.ts`, is relocated to `src/design-system/tokens.ts` unchanged. Confirmed via `expo start --web` log line disappearing ("Using src/app as the root directory" no longer printed) that Expo Router now resolves `app/` at the top level, not `src/app/`.
+- **Riscos:** drifting from the documented structure "for convenience" — forbidden under ADR-017's continuing spirit even in a fully new codebase. *(This is the risk that materialized — see "Execução real" above — and was corrected rather than accepted.)*
+- **Testes:** `tsc --noEmit` clean; `expo start --web` bundled (852 modules, back down from the prototype's 1201 now that Reanimated/tab-navigator usage is gone) and served the placeholder screen, confirmed via headless-Chromium screenshot.
 - **Impacto na arquitetura:** physically instantiates the Presentation layout.
 - **Execution Environment: Any Environment.**
 
 ### 2.2 — Establish the file-header convention
+- **Status: ✅ Done (2026-08-10).**
 - **Objetivo:** a one-line file-header comment convention (pointer to the relevant architecture doc section), documented in `AGENTS.md`.
 - **Criar:** —
 - **Modificar:** `AGENTS.md` (append the convention; `AGENTS.md` was rewritten for Swift during the earlier migration and needs its own technology references corrected back to React Native/Expo as part of this same pass — tracked here rather than as a separate task, since it's a one-line fix alongside this one).
 - **Depende de:** 2.1
 - **Critérios de conclusão:** convention documented; `AGENTS.md` accurately reflects the current stack (React Native + Expo, not Swift); the placeholder files from 2.1 already follow the convention.
+- **Execução real:** `AGENTS.md` already reflected React Native + Expo accurately (corrected during the 2026-08-07 documentation migration, no Swift references remaining) — nothing left to fix there. Added a new "File-header convention" section instead. Every 2.1 placeholder file and both pre-existing `src/design-system/*.ts` files (which predated the convention, written during the prototype) follow it.
 - **Riscos:** low.
-- **Testes:** none (documentation task).
+- **Testes:** none (documentation task). *(Held.)*
 - **Impacto na arquitetura:** supports `RISKS.md` R-04 by making intent traceable file-by-file, and prevents `AGENTS.md` from steering a future session toward the wrong stack the way it once did toward Expo before the first migration (`REPOSITORY_AUDIT.md`'s original finding) — same failure mode, opposite direction, worth actively guarding against here.
+
+**Macro-stage 2 — status: ✅ closed (2026-08-10).**
 - **Execution Environment: Any Environment.**
 
 **Macro-stage exit criteria:** folder skeleton exists, matches documentation exactly, convention recorded, `AGENTS.md` corrected.
