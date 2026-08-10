@@ -42,7 +42,7 @@ This backlog implements `ROADMAP.md`, the frozen architecture in `ARCHITECTURE.m
 | T1-06 | Build onboarding flow (React Native + Expo Router) → creates initial user profile, goals, topics, and seeds `learner_profile` | P0 | T0-09, T1-04 |
 | T1-07 | Implement backend Session Orchestrator Edge Function + `ClaudeConversationEngine` adapter | P0 | T0-04, T0-06, T1-01 |
 | T1-08 | Build text chat UI (MVVM: screens + Zustand stores), Repository/Use-Case access only — no direct `expo-sqlite` or Supabase imports in Presentation | P0 | T1-07, T1-04 |
-| T1-09 | Implement Memory Extraction Job (server-side Claude call → vocabulary/mistakes/topics/summary+embedding, transcript uploaded to Storage) | P0 | T1-01, T0-06 |
+| T1-09 | Implement Memory Extraction Job (server-side Groq call, `llama-3.3-70b-versatile` — ADR-025, 2026-08-10, replacing Claude → vocabulary/mistakes/topics/summary+embedding, transcript uploaded to Storage) | P0 | T1-01, T0-06 |
 | T1-10 | Implement Learner Profile Updater job (incremental merge-update of `learner_profile` after each session, ADR-009) | P1 | T1-09 |
 | T1-11 | Implement `SessionCompletedEvent` to decouple "session ended" from "trigger sync + extraction" (recommended, optional for MVP) | P2 | T1-08 |
 | T1-12 | App-level Face ID/Touch ID lock (`expo-local-authentication`, ADR-011) on iOS/Android; PIN/password fallback on web (ADR-024) | P1 | T1-05 |
@@ -74,7 +74,7 @@ This backlog implements `ROADMAP.md`, the frozen architecture in `ARCHITECTURE.m
 | ID | Task | Priority | Depends on |
 |---|---|---|---|
 | T3-01 | Implement priority-scoring scheduler (`ARCHITECTURE.md` §5.3), including the reserved `upcoming_event_boost` term (defaults to 0) | P0 | T2-02, T2-03, T2-04 |
-| T3-02 | Weekly HR scenario generator job (Claude-generated, non-repeating) | P0 | T3-01 |
+| T3-02 | Weekly HR scenario generator job (Groq-generated, non-repeating — ADR-025) | P0 | T3-01 |
 | T3-03 | Daily English scenario rotation logic (maintains 30% weighting over rolling window) | P0 | T3-01 |
 | T3-04 | Difficulty auto-adjustment based on mistake trend | P1 | T3-01 |
 | T3-05 | "Why this lesson" transparency view (shows the scheduler's reasoning) | P2 | T3-01 |
@@ -90,7 +90,7 @@ This backlog implements `ROADMAP.md`, the frozen architecture in `ARCHITECTURE.m
 | T4-03 | Implement native fallback `VoiceEngine` adapter (`@react-native-voice/voice` + `expo-speech`), iOS/Android | P0 | T0-04 |
 | T4-04 | `expo-audio` audio session management (recording/playback, interruption handling — persist partial transcript immediately on interruption) | P0 | T4-01, T4-03 |
 | T4-05 | Reconnection-before-fallback logic (short backoff retry on Realtime drop, then switch to native path) | P0 | T4-01, T4-03 |
-| T4-06 | Pronunciation mistake capture pipeline into `mistakes` table (Realtime path) | P1 | T4-01, T1-09 |
+| T4-06 | Pronunciation mistake capture pipeline into `mistakes` table (browser `SpeechRecognition` path, web only — ADR-026) | P1 | T4-01, T1-09 |
 | T4-07 | Speaking-speed / confidence signal capture | P2 | T4-01 |
 | T4-08 | Voice UI (waveform via React Native Skia, listening state, offline-mode indicator, premium feel per Principle 6) | P1 | T4-01 |
 | T4-09 | Enforce and measure the latency budgets defined in `NON_FUNCTIONAL_REQUIREMENTS.md` §1/§9 as CI/manual acceptance checks | P1 | T4-01 |
@@ -120,7 +120,7 @@ This backlog implements `ROADMAP.md`, the frozen architecture in `ARCHITECTURE.m
 | ID | Task | Priority | Depends on |
 |---|---|---|---|
 | T6-01 | Cost/usage monitoring dashboard (token spend per session/month) | P1 | T1-07 |
-| T6-02 | Model migration playbook (Claude/OpenAI version upgrades without breaking continuity), exercised via T0-13's second adapter | P1 | T0-04, T0-13 |
+| T6-02 | Model migration playbook (Groq model updates, or a future paid-provider reversion if the zero-cost constraint lifts — ADR-025) without breaking continuity, exercised via T0-13's second adapter | P1 | T0-04, T0-13 |
 | T6-03 | Raw transcript retention/archival policy for Supabase Storage | P2 | T1-09 |
 | T6-04 | Periodic schema review process (new professional contexts, career changes); evaluate weekly/monthly memory rollups if `learner_profile` alone proves insufficient (ADR-009) | P2 | T1-10 |
 | T6-05 | Periodic review of backend API contract for future dedicated desktop client readiness — partially validated already by the web/PWA companion surface | P2 | — |

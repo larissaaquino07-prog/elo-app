@@ -32,9 +32,9 @@ Implements the confirmed stack: **React Native + Expo, TypeScript, MVVM + Clean 
 - Implement the Repository layer (`SessionRepository`, `MemoryRepository`) + mappers so Presentation never touches `expo-sqlite` or Supabase directly.
 - Supabase Auth integration with `expo-secure-store`-backed session storage; app-level Face ID/Touch ID lock (`expo-local-authentication`) on iOS/Android.
 - Onboarding flow (React Native + Expo Router) → creates the initial user profile, goals, topics, and seeds `learner_profile`, both locally and remotely.
-- Session Orchestrator (backend) + `ClaudeConversationEngine` adapter.
+- Session Orchestrator (backend) + `GroqConversationEngine` adapter (ADR-025, 2026-08-10 — replacing the originally-planned `ClaudeConversationEngine`).
 - Text chat UI (MVVM: screens + Zustand stores), reading/writing through the Repository/Use Case layer only.
-- Memory Extraction Job (server-side, Claude) → vocabulary, mistakes, topics, summary + embedding; transcript uploaded to object storage, never stored inline.
+- Memory Extraction Job (server-side, Groq) → vocabulary, mistakes, topics, summary + embedding; transcript uploaded to object storage, never stored inline.
 - Learner Profile Updater (incremental rollup summary, `ARCHITECTURE.md` §5.2) — a strong "knows me" baseline before any topic-specific retrieval runs.
 - Weekly backup export job (Supabase + a secondary, user-owned location).
 - Basic progress view (streak — derived from session history, not a synced field — session count, topics touched) via the Repository layer.
@@ -68,16 +68,17 @@ Implements the confirmed stack: **React Native + Expo, TypeScript, MVVM + Clean 
 ---
 
 ## Phase 4 — Voice Conversations
-**Goal:** Speaking becomes the primary interaction mode (Principle 4) on iOS/Android, on top of a proven memory + adaptive foundation, with native continuity when offline.
+**Goal:** Speaking becomes the primary interaction mode (Principle 4), on top of a proven memory + adaptive foundation.
 
-- Integrate OpenAI Realtime API (primary voice engine) via `react-native-webrtc`, seeded with memory context from the backend.
-- Integrate `@react-native-voice/voice` (on-device recognition, wrapping the native Speech framework/`SpeechRecognizer` under the hood) + `expo-speech` as the offline/fallback voice path on iOS/Android.
-- `expo-audio`-based audio session management (recording/playback, interruption handling).
-- Pronunciation mistake capture into structured memory (Realtime path).
-- Automatic fallback switch when the Realtime session is unavailable — never blocks a study session.
-- On web/PWA: voice remains a companion-surface gap (ADR-024) — text sessions stay fully available there; no offline voice fallback exists in the browser.
+**Rewritten 2026-08-10 (ADR-026, zero-cost constraint) — inverted from the original iOS-primary plan:**
 
-**Exit criteria:** A full session can happen by voice only, start to finish, on iOS/Android, with the same memory continuity as text sessions; pronunciation issues show up in the mistakes table; losing connectivity mid-flow degrades gracefully to the native fallback instead of failing.
+- Integrate the browser's native `SpeechRecognition`/`SpeechSynthesis` Web APIs on the **web/PWA target** — this is now the app's only voice-input path, seeded with memory context from the backend the same way the original Realtime plan was.
+- `expo-speech` provides voice **output** on iOS/Android (Expo Go) — the coach can speak there even though it can't listen.
+- No `@react-native-voice/voice`, no `react-native-webrtc`, no OpenAI Realtime API — all require either a paid API or a custom dev-client build this project isn't funding under the zero-cost constraint (`RISKS.md` R-07).
+- Pronunciation mistake capture into structured memory (from the web `SpeechRecognition` path).
+- **Conditional reversal**: if Julia ever lifts the zero-cost constraint, this phase reverts toward the original iOS-primary, Realtime-based design — `ARCHITECTURE_DECISIONS.md` ADR-026 for the full reasoning.
+
+**Exit criteria:** A full session can happen by voice only, start to finish, on the web/PWA target, with the same memory continuity as text sessions; pronunciation issues show up in the mistakes table; iOS/Android sessions remain fully usable by text, with spoken coach output via `expo-speech`.
 
 ---
 
@@ -100,7 +101,7 @@ Implements the confirmed stack: **React Native + Expo, TypeScript, MVVM + Clean 
 **Goal:** Sustain Principles 1 & 2 for years, not just at launch.
 
 - Periodic review of memory schema as new needs emerge (e.g., new professional context, relocation, career change).
-- Model upgrades (Claude/OpenAI model version migrations) without losing continuity — enabled structurally by the Domain-layer engine interfaces from Phase 0.
+- Model/provider upgrades (Groq model updates, or a future paid-provider reversion — ADR-025 — if the zero-cost constraint ever lifts) without losing continuity — enabled structurally by the Domain-layer engine interfaces from Phase 0.
 - Data retention/archival strategy maturation (raw transcript pruning policy, backups).
 - Periodic evaluation of whether the backend's platform-agnostic contract still holds, in case a future dedicated desktop client is ever pursued — partially validated already, since the web/PWA companion surface proves the same reuse pattern in v1.
 - Ongoing review of the learning-health indicators in `OBSERVABILITY.md` §9 (Fluency/Confidence trend, weak-topic resolution rate) — a flat trend despite consistent use is a cue to revisit `LEARNING_ENGINE.md`/`PROMPT_ENGINE.md`, not just to keep shipping features.

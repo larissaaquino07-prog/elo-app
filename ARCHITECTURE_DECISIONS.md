@@ -367,6 +367,36 @@ Format per decision: ID, Date, Problem, Alternatives Considered, Decision, Justi
 
 ---
 
+## ADR-025 — AI conversation engine: Groq (Llama 3.3 70B free tier) replacing Anthropic Claude
+
+**Date:** 2026-08-10
+**Problem:** ADR-004's "moderate, willing to pay" budget posture no longer holds — Julia confirmed an absolute zero-cost constraint (2026-08-10), no exception. Anthropic Claude (ADR-002's reasoning leg) has no free tier for real usage; continuing to specify it as the conversation engine is no longer implementable under the actual, current constraint.
+**Alternatives considered:**
+1. Keep Claude specified, leave the conversation engine unimplementable until Julia pays — rejected, doesn't serve "finish the project now."
+2. On-device LLM inference (a small open-weight model via a React Native LLM runtime) — zero external dependency, but meaningfully weaker quality, slower, and React Native's on-device-LLM tooling is still immature relative to a hosted API integration.
+3. A hosted free-tier API. Compared concretely (WebSearch, 2026-08-10, since training knowledge on API pricing/limits goes stale fast): Google Gemini's free tier (1,500 requests/day, 15 RPM, ~1M-token context, no card) vs. Groq's free tier (1,000 requests/day, 30 RPM, `llama-3.3-70b-versatile`, LPU-accelerated for low latency, no card).
+**Decision:** Option 3, specifically **Groq**, not Gemini.
+**Justification:** The deciding factor is privacy, not quota size: Gemini's free tier explicitly uses conversations to improve Google's products; Groq's free tier explicitly does not train on user data. Given `RISKS.md` R-09 (sensitive HR-related conversation content — Julia is an HR professional, role-play scenarios reference real workplace situations), that difference outweighs Gemini's larger daily quota. Groq's 1,000 requests/day is still generous for a single personal user's daily practice sessions. This is a Data-layer adapter swap behind the existing `ConversationEngine` protocol (ADR-002/ADR-005) — the decoupling those ADRs required is exactly what makes this swap not a rewrite.
+**Consequences:** Quality/nuance for subtle correction judgment (`PROMPT_ENGINE.md` §3) is likely below Claude's — an accepted trade-off, not a hidden one. `PROMPT_ENGINE.md` §9's prompt-caching/token-cost strategies were written for a metered-token billing model; Groq's free tier is request/rate-limited instead, so that section needs a technology-note update, not a rewrite of its actual cost-discipline reasoning. The voice-specific half of ADR-002 (OpenAI Realtime) is addressed separately in ADR-026, for the same underlying zero-cost driver.
+**Future impacts:** Supersedes ADR-002's reasoning-engine leg specifically and ADR-004 in full (the budget posture itself changed, not just the vendor within it). A new risk is registered in `RISKS.md` for free-tier volatility — materially different from a paid API's price/deprecation risk (ADR-002's original R-05 framing), since a free tier can be narrowed or revoked with no notice and no paid recourse. Reverting to Claude, if Julia ever lifts the zero-cost constraint, is a one-adapter swap back — exactly the scenario ADR-002/ADR-005's decoupling was designed for.
+
+---
+
+## ADR-026 — Web-primary voice surface (conditional), inverting ADR-024 for voice specifically
+
+**Date:** 2026-08-10
+**Problem:** ADR-024 made the iPhone the primary, full-capability (voice-inclusive) surface and the web/PWA target a companion surface with no voice. Under the newly-confirmed zero-cost constraint (ADR-025's problem statement), real voice input (`@react-native-voice/voice`) requires a custom EAS dev-client build — and installing any custom build on a physical iPhone without a Mac requires the Apple Developer Program (US$99/year), which is not an AI cost but an Apple platform requirement with no workaround. Expo Go, the only zero-cost iOS distribution path, does not support `@react-native-voice/voice`'s native module (confirmed via the package's own issue tracker and its config-plugin requirement, WebSearch 2026-08-10) — meaning under a strict zero-cost constraint, voice input would not function on iOS at all, directly undermining Principle 4 (`PROJECT_BRIEF.md`), the app's primary stated value proposition.
+**Alternatives considered:**
+1. Keep iPhone as primary, ship without voice input on iOS until Julia reconsiders the Apple Developer fee — leaves the app's core interaction mode unavailable on its primary platform indefinitely, with no target date.
+2. Pay the US$99/year as a one-time platform-fee exception, distinct from an ongoing AI subscription — presented to Julia explicitly as an option; **declined** (2026-08-10).
+3. Make the web/PWA target — opened in a browser (Chrome/Edge) on the Samsung notebook — the primary surface for voice specifically, using the browser's native `SpeechRecognition` Web API: zero cost, no Expo Go, no custom dev client, no Apple Developer Program involved at all. iPhone (via Expo Go) remains available as a secondary, text-only surface in the meantime.
+**Decision:** Option 3, explicitly confirmed by Julia (2026-08-10).
+**Justification:** The only path that keeps voice — the product's central value proposition, not a secondary feature — actually functional under Julia's absolute zero-cost constraint. Browser `SpeechRecognition` is a mature, real, widely-shipped capability, not a fragile workaround. React Native Web (already part of the architecture since ADR-019) renders the same component tree to the DOM, so this does not require a second, parallel UI implementation — the existing Coach screen gains a web-specific voice-input code path, not a separate app.
+**Consequences:** Inverts ADR-024's iOS-primary framing for voice specifically, for as long as the zero-cost constraint holds. `DESIGN_SYSTEM.md` §5.4's "the Coach tab's voice mode is unavailable [on web]" note is now the opposite of current reality and needs correcting. `ARCHITECTURE.md`/`NON_FUNCTIONAL_REQUIREMENTS.md` per-platform scoping notes written under ADR-024's original direction (web weaker than iOS specifically for voice) need re-checking wherever they assumed that direction. iPhone (via Expo Go) becomes the secondary, text-only coaching surface until/unless Julia reconsiders the Apple Developer Program fee.
+**Future impacts:** Explicitly conditional, not a permanent reversal of the original mobile/voice-first product vision (`PROJECT_BRIEF.md`) — revisit immediately if the US$99/year constraint is ever lifted, at which point ADR-024's original iOS-primary framing is the one to return to, not this one. Does **not** supersede ADR-024's reasoning for its *other* companion-surface scoping decisions (no WebAuthn, best-effort background sync, etc. — those reasons are unrelated to voice and still hold). Registered as a new ADR rather than editing ADR-024, per this document's no-rewriting-history rule.
+
+---
+
 ## Approval Checklist — 2026-08-06 Architecture Review
 
 Status ahead of freezing the architecture for Phase 0 implementation.
@@ -448,3 +478,16 @@ Two analysis documents preceded this addendum:
 ADR-005, ADR-006, ADR-011, and ADR-012 received technology-note updates in place (their actual decisions never depended on the Apple ecosystem specifically) rather than being superseded. WidgetKit (`TASKS.md` T5-04) is deferred to post-launch, not cut — it requires isolated native Swift code regardless of client framework, an iOS-platform fact no cross-platform choice changes.
 
 **This addendum, together with the ADRs above, is the governing record for the ongoing per-document migration** carried out immediately after it in this same work session — see each updated document's own note pointing back here for its specific changes.
+
+---
+
+## Addendum — 2026-08-10 Zero-Cost Constraint (AI engine + voice surface)
+
+Julia confirmed, explicitly and without exception, a zero-dollar cost constraint for the entire project (2026-08-10) — a change from ADR-004's "moderate, willing to pay" posture, discovered when she asked for the app's status and, on seeing the real state (a placeholder screen plus a throwaway visual prototype), decided to move to real implementation and clarified the budget wasn't what it used to be.
+
+This forced two concrete decisions, both presented to her with the real technical trade-offs (including a WebSearch-verified check of Expo Go's native-module limitations, not assumed) before being confirmed, not decided unilaterally:
+
+- **ADR-025** — Groq (`llama-3.3-70b-versatile`, free tier) replaces Anthropic Claude as the conversation engine, chosen over the larger-quota Gemini free tier specifically because Groq's tier doesn't train on user data (`RISKS.md` R-09).
+- **ADR-026** — the web/PWA target (browser on the Samsung notebook) becomes the primary surface for voice specifically, inverting ADR-024 for that one capability — because real voice input on iOS requires a custom EAS dev-client build, which requires the Apple Developer Program (US$99/year) to install on a physical iPhone without a Mac, which Julia declined to pay. iPhone (via Expo Go, still zero-cost) remains available as a secondary, text-only surface.
+
+Both are framed as **conditional on the zero-cost constraint holding**, not permanent reversals of ADR-002's hybrid-engine reasoning or ADR-024's original iOS-primary product vision — revisit both if Julia ever reconsiders. A new risk (free-tier volatility) is registered in `RISKS.md` rather than treated as resolved, since a free tier is a materially weaker guarantee than a paid API contract.

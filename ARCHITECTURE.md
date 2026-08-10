@@ -119,29 +119,28 @@ flowchart LR
   end
 
   Storage[(Supabase Storage\nraw transcripts)]
-  Claude[Anthropic Claude API]
-  Realtime[OpenAI Realtime API]
+  Groq[Groq API\nllama-3.3-70b-versatile, free tier]
 
   Presentation --> DomainL --> DataL
   DataL --> Native
   DataL <-->|sync, idempotent upsert| Backend
   DataL <-->|local cache/offline queue| SqliteStore[(expo-sqlite\non-device store)]
-  Orchestrator --> Claude
-  Orchestrator --> Realtime
+  Presentation -.->|browser SpeechRecognition,\nweb/PWA only, ADR-026| Orchestrator
+  Orchestrator --> Groq
   Orchestrator --> Structured
   Orchestrator --> Profile
   Orchestrator --> Vector
-  MemoryWriter --> Claude
+  MemoryWriter --> Groq
   MemoryWriter --> Structured
   MemoryWriter --> Vector
   MemoryWriter --> Storage
-  ProfileUpdater --> Claude
+  ProfileUpdater --> Groq
   ProfileUpdater --> Profile
   Scheduler --> Structured
   Scheduler --> Orchestrator
 ```
 
-Unchanged principle, survives the migration untouched: the client never talks to Claude or the Realtime API directly; keys live only in the backend.
+**2026-08-10 (ADR-025/ADR-026, zero-cost constraint):** the reasoning engine is Groq, not Anthropic Claude — the principle below is otherwise unchanged. Voice input no longer routes through a backend-issued realtime token (OpenAI Realtime is gone entirely); the browser's own `SpeechRecognition` API converts speech to text client-side, on web only, and that text enters the normal conversation flow like any typed message — voice is now a client-side input method feeding the same orchestration path, not a parallel backend engine. The client never talks to Groq directly; keys live only in the backend, same as the original Claude design.
 
 ## 4. Local persistence & sync (`expo-sqlite` ↔ Supabase)
 
@@ -172,7 +171,9 @@ Conflict resolution (unchanged in substance):
 
 ### 5.1 Conversation orchestration
 
-Unchanged flow, entirely backend-side and unaffected by the client migration: load context → ask the Adaptive Learning Scheduler what to prioritize → stream a Claude conversation or issue an ephemeral Realtime token → enqueue Memory Extraction on session end (via `SessionCompletedEvent`, §2.4).
+Flow unaffected by either platform migration, entirely backend-side: load context → ask the Adaptive Learning Scheduler what to prioritize → stream a conversation from the `ConversationEngine` adapter → enqueue Memory Extraction on session end (via `SessionCompletedEvent`, §2.4).
+
+**2026-08-10 (ADR-025, zero-cost constraint):** the `ConversationEngine` adapter is now **Groq** (`llama-3.3-70b-versatile`, free tier), not Anthropic Claude — a Data-layer swap behind the same Domain protocol (ADR-002/ADR-005), not a change to this flow. Chosen over Google Gemini's larger free-tier quota specifically because Groq's tier doesn't train on submitted conversations (`RISKS.md` R-09). Free-tier rate limits (1,000 requests/day, 30 RPM) replace per-token billing as the operative usage constraint — see `RISKS.md` R-06/R-15.
 
 ### 5.2 Long-term memory (Principle 1) — hierarchical, not flat
 
@@ -201,9 +202,13 @@ priority(topic) = w1 * recency_decay(last_seen)
 
 ### 5.4 Voice conversation layer (Principle 4)
 
-- **Primary**: OpenAI Realtime API via `react-native-webrtc`, seeded with `learner_profile` + adaptive focus, using a backend-issued ephemeral token (§7). iOS/Android only in full quality; the web/PWA target can use browser-native WebRTC for the same transport if voice-on-web is ever prioritized, but is not required to under the companion-surface framing (ADR-024).
-- **Fallback**: `@react-native-voice/voice` (on-device speech recognition — wraps the native iOS Speech framework / Android `SpeechRecognizer` under the hood, a packaging change from the original design, not a capability loss) + `expo-speech` (TTS, wrapping `AVSpeechSynthesizer`/Android TTS) — native and offline-capable on iOS/Android. **No offline voice fallback exists on web** (browser `SpeechRecognition` is typically cloud-backed, not offline) — the web target degrades to text-only when offline, an explicit, accepted platform gap (ADR-024), not an oversight.
-- Latency budget, reconnection-before-fallback, interruption handling, and voice-persona-consistency requirements are all unchanged from the original design — see `NON_FUNCTIONAL_REQUIREMENTS.md` §1/§9 for the canonical numeric targets and `expo-audio`'s audio-session APIs (the RN equivalent of `AVAudioSession` interruption handling) for the mechanism.
+**2026-08-10 (ADR-026, zero-cost constraint) — this subsystem inverted from the original iOS-primary design; treat this as current, not the description below it in spirit:**
+
+- **Primary, web/PWA only**: the browser's native `SpeechRecognition` Web API for voice input, `expo-speech`/the browser's `SpeechSynthesis` API for output — zero cost, no OpenAI Realtime API involved at all (dropped entirely, it has no free tier). This is now the app's **only** voice-input path. React Native Web renders the same Coach screen component tree to the DOM; voice input is a web-specific code path within it, not a second UI.
+- **iOS/Android (via Expo Go, ADR-026)**: **no voice input.** `@react-native-voice/voice` requires a custom EAS dev-client build, which requires the Apple Developer Program (US$99/year) to install on a physical iPhone without a Mac — declined. `expo-speech` (TTS, voice *output*) still works in Expo Go — the coach can speak, but the app cannot listen, on iOS/Android today. Surface this asymmetry explicitly in the UI (§8's capability table) rather than silently degrading.
+- `react-native-webrtc` is no longer part of this subsystem — it existed only to carry OpenAI Realtime's audio transport, which is gone.
+- Latency budget, interruption handling, and voice-persona-consistency requirements from the original design (`NON_FUNCTIONAL_REQUIREMENTS.md` §1/§9) still apply, now measured against browser `SpeechRecognition` + Groq (§5.1) instead of OpenAI Realtime + Claude — the numeric targets themselves need re-validation against the new stack's actual latency profile, not assumed to still hold (`RISKS.md` R-01).
+- **Conditional, not permanent**: this entire section reverts to something closer to the original iOS-primary design if Julia ever lifts the zero-cost constraint (`ARCHITECTURE_DECISIONS.md` ADR-026's own framing) — the `VoiceEngine` Domain protocol (ADR-002/ADR-005) is what makes that reversion an adapter swap rather than a rewrite, same as §5.1's engine swap.
 
 ### 5.5 Progress tracking & dashboard
 
@@ -232,10 +237,10 @@ Replaces the original native-iOS-framework table — same purpose (map each capa
 
 | Capability | Package | Platform coverage | Serves |
 |---|---|---|---|
-| On-device speech recognition (offline voice fallback) | `@react-native-voice/voice` | iOS, Android | Principle 4, continuity |
-| Realtime voice transport | `react-native-webrtc` | iOS, Android (web possible via browser-native WebRTC, not required) | Voice reliability |
-| Local audio playback/recording | `expo-audio` | iOS, Android, Web | Voice reliability |
-| Local TTS fallback | `expo-speech` | iOS, Android, Web (browser `SpeechSynthesis`, verify support) | Continuity, cost control (D4) |
+| Speech recognition (voice input) | Browser `SpeechRecognition` Web API | **Web only** (ADR-026, 2026-08-10) — not `@react-native-voice/voice`, dropped: it needs a custom EAS dev-client build, which needs the Apple Developer Program to install on a physical iPhone without a Mac, declined | Principle 4 — the app's only voice-input path today |
+| Realtime voice transport | *(removed, 2026-08-10)* | — | OpenAI Realtime API had no free tier; `react-native-webrtc` is no longer part of this stack |
+| Local audio playback/recording | `expo-audio` | iOS, Android, Web | Supports whatever voice-output flow exists on a given platform |
+| TTS (voice output) | `expo-speech` | iOS, Android, Web (browser `SpeechSynthesis`) | Works everywhere, including iOS/Android where voice *input* does not (2026-08-10 asymmetry, ADR-026) |
 | Home-screen streak/progress widget | Isolated native Swift/WidgetKit module (no cross-platform equivalent exists) | iOS only | Principle 2 reinforcement — **deferred to post-launch** (ADR-019 consequence, `TASKS.md` T5-04) |
 | Native daily reminder/streak notifications | `expo-notifications` | iOS, Android; web push has a different, more limited delivery model, not required for v1 | Habit formation over years |
 | App-lock biometrics | `expo-local-authentication` | iOS, Android; web uses PIN/password fallback (ADR-024) | Defense-in-depth (§7) |
@@ -407,13 +412,13 @@ Unchanged: raw transcripts live in **Supabase Storage** (`transcripts/{user_id}/
 | Database | Supabase Postgres + `pgvector` (HNSW index) | Structured + semantic memory, source of truth — unaffected |
 | Object storage | Supabase Storage | Keeps raw transcripts out of hot query tables — unaffected |
 | Auth | Supabase Auth + `expo-secure-store` + biometric app-lock (iOS/Android) | Layered security appropriate to sensitive content |
-| Reasoning/generation LLM | Anthropic Claude API | Primary conversation/content/profile-update engine — unaffected |
-| Voice (primary) | OpenAI Realtime API via `react-native-webrtc` | Most mature low-latency voice-to-voice option |
-| Voice (fallback) | `@react-native-voice/voice` + `expo-speech` | Native (iOS/Android), offline-capable, cost-conscious |
+| Reasoning/generation LLM | Groq API, `llama-3.3-70b-versatile` (free tier) | Zero-cost conversation/content/profile-update engine (ADR-025, 2026-08-10) — chosen over Gemini's larger free tier specifically for its no-training-on-user-data terms (`RISKS.md` R-09) |
+| Voice input | Browser `SpeechRecognition` Web API | Web/PWA only, zero cost — the app's only voice-input path (ADR-026, 2026-08-10); no OpenAI Realtime, no `@react-native-voice/voice` |
+| Voice output | `expo-speech` / browser `SpeechSynthesis` | Works on iOS/Android (Expo Go) and web — the coach can speak everywhere even where it can only listen on web |
 | Notifications | `expo-notifications` | Native habit reinforcement (iOS/Android) |
 | Crash reporting | Sentry React Native, scoped to crashes/errors only | No zero-dependency native equivalent exists in RN (ADR-023) |
-| Build/distribution | EAS Build + EAS Submit | No local macOS dependency at any point (ADR-019) |
-| Web delivery | React Native Web + PWA (manifest + service worker) | Companion-surface notebook access (ADR-024) |
+| Build/distribution | Expo Go | Zero cost, no Apple Developer Program (ADR-026, 2026-08-10) — EAS Build/Submit remains documented (`IMPLEMENTATION_PLAN.md` macro-stage 26) and unaffected in principle, just not currently being executed |
+| Web delivery | React Native Web + PWA (manifest + service worker) | Primary surface for voice as of 2026-08-10 (ADR-026) — inverted from the original companion-surface framing (ADR-024), conditional on the zero-cost constraint |
 | CI | GitHub Actions | Regression safety net; no macOS-runner requirement for most of the suite |
 
 ## 11. Scalability at the brief's own stated horizon

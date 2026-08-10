@@ -9,9 +9,9 @@ Likelihood/Impact scale: Low / Medium / High.
 ## R-01 — Voice architecture is unproven for this use case
 **Likelihood:** Medium · **Impact:** High
 
-The hybrid (Claude for reasoning/memory, OpenAI Realtime API for voice) is a reasonable default but untested for this exact pattern. Latency, cost, or context-injection quality may not meet the "feels premium" bar (Principle 6).
+*(Superseded content, 2026-08-10 zero-cost constraint, ADR-025/ADR-026 — kept as R-01 per this document's no-renumbering rule.)* The original risk assumed a Claude + OpenAI Realtime hybrid, with `@react-native-voice/voice` as an iOS/Android native fallback and no voice at all on web. Under the zero-cost constraint, the underlying architecture inverted: **the browser's `SpeechRecognition` API on web is now the only voice-input path** (ADR-026) — real, mature, zero-cost, but its actual conversational latency/quality *in this specific product* is exactly as unproven as the original hybrid was, just for a different technology. On iOS (via Expo Go, ADR-026), voice input does not exist at all — not degraded, absent — since `@react-native-voice/voice` needs a custom dev client this project isn't building.
 
-**Mitigation:** Voice sequenced last (`ROADMAP.md` Phase 4). Native fallback (`@react-native-voice/voice` + `expo-speech`, T4-03 — the React Native equivalents of the Speech framework + `AVSpeechSynthesizer`, per the 2026-08-07 client platform migration, ADR-019) degrades a Realtime failure to reduced richness rather than a blocked session, on iOS/Android. The 2026-08-06 review added concrete acceptance criteria — latency budgets (canonical values in `NON_FUNCTIONAL_REQUIREMENTS.md` §1/§9) and reconnect-before-fallback logic (`ARCHITECTURE.md` §5.4) — so this risk is now measurable, not just anticipated. Fallback-engagement rate is tracked as a health signal (`OBSERVABILITY.md` §7). On web, no offline voice fallback exists at all (`ARCHITECTURE_DECISIONS.md` ADR-024) — a wider risk surface than the original iOS-only design, accepted under the companion-surface framing.
+**Mitigation:** Voice sequenced last (`ROADMAP.md` Phase 4) — unchanged. The original acceptance-criteria discipline (latency budgets, `NON_FUNCTIONAL_REQUIREMENTS.md` §1/§9) still applies, now measured against browser `SpeechRecognition` + Groq (ADR-025) instead of OpenAI Realtime + Claude. `expo-speech` (TTS, voice *output*) still works on iOS via Expo Go regardless of the input gap — the coach can speak even where it can't listen, an asymmetry worth surfacing in the UI rather than hiding. Fallback-engagement rate as a health signal (`OBSERVABILITY.md` §7) still applies, now measuring web `SpeechRecognition` failures specifically. This risk's status is explicitly tied to R-15 (free-tier dependency) and to ADR-026's own "conditional, revisit if the constraint lifts" framing — it does not resolve independently of those.
 
 ---
 
@@ -57,21 +57,21 @@ Anthropic, OpenAI, and Supabase will all ship breaking changes and deprecate mod
 
 ---
 
-## R-06 — Cost growth under a moderate-but-efficiency-conscious budget
+## R-06 — Usage growth against a zero-cost, rate-limited budget
 **Likelihood:** Medium · **Impact:** Medium
 
-D4 explicitly conditions the moderate budget on avoiding unnecessary API calls.
+*(Reframed 2026-08-10, ADR-025 — kept as R-06, same underlying concern.)* D4 originally conditioned a moderate *dollar* budget on avoiding unnecessary API calls; D4 now specifies zero dollars, so the actual constraint became Groq's free-tier rate limit (1,000 requests/day, 30 RPM) rather than a bill. The failure mode is the same shape — unmanaged usage growth eventually breaks the budget — just measured in requests-per-day instead of currency.
 
-**Mitigation:** Usage/cost dashboard (T6-01) from Phase 1, fed by per-call instrumentation (T1-17, `OBSERVABILITY.md` §7). Concrete levers, all specified in `PROMPT_ENGINE.md` §9: prompt caching, right-sized model per job (cheaper tier for background extraction/profile-update jobs), hierarchical memory bounding context size regardless of history length (ADR-009), native voice fallback avoiding API cost entirely for degraded/offline sessions, and provider-swappability itself as a long-term cost lever.
+**Mitigation:** Usage dashboard (T6-01) from Phase 1, fed by per-call instrumentation (T1-17, `OBSERVABILITY.md` §7) — now tracking rate-limit headroom, not spend. Concrete levers from `PROMPT_ENGINE.md` §9 still apply where they reduce *request count*, not just token cost: hierarchical memory bounding context size regardless of history length (ADR-009) reduces retries/re-sends from oversized prompts; native voice fallback (`expo-speech`, TTS only under ADR-026) avoids a request entirely for degraded sessions; provider-swappability remains the long-term lever if Groq's free tier itself becomes the bottleneck (see R-15). Prompt-caching's specific cost-per-token framing in `PROMPT_ENGINE.md` §9 needs a technology-note update — Groq's free tier doesn't bill per token, so that lever's benefit shifts from "cheaper" to "faster/lower rate-limit pressure."
 
 ---
 
 ## R-07 — iOS distribution for years-long personal use
-**Likelihood:** Medium (was High before the 2026-08-07 client platform migration) · **Impact:** High
+**Likelihood:** Medium-High (raised back up, 2026-08-10 — see below) · **Impact:** High
 
 Distribution mechanism is confirmed in principle (T0-10) but the operational mitigation still needs setting up in Phase 0.
 
-**Mitigation:** Apple Developer Program enrollment (unaffected by the migration — still required for App Store/TestFlight regardless of client framework) + **EAS Build/Submit** (`ARCHITECTURE_DECISIONS.md` ADR-019), which removes the local-macOS dependency the original Xcode-based plan required — a direct, substantial de-risking of this exact item, not just a technology swap. The underlying 90-day TestFlight build-expiry cycle is an Apple policy, unaffected by the migration, and still needs a recurring reminder or automated re-build/re-submit process (`IMPLEMENTATION_PLAN.md` macro-stage 26.6).
+**Mitigation (unaffected by the client-platform migration itself):** Apple Developer Program enrollment + EAS Build/Submit removes the local-macOS dependency the original Xcode-based plan required. **Status as of 2026-08-10 (ADR-025/ADR-026, zero-cost constraint):** Julia declined the US$99/year Apple Developer Program fee, so this mitigation is not currently being executed — iOS distribution today means Expo Go only (free, but text-only, no custom native modules, no standalone app icon, no TestFlight, no 90-day expiry cycle either since there's no build to expire). This is a **deliberate, reversible trade-off**, not an unmitigated gap: the EAS/Apple-Developer path remains fully documented and ready (`IMPLEMENTATION_PLAN.md` macro-stage 26) for the moment Julia reconsiders the fee — nothing about it needs to be relearned or redesigned, only paid for and executed.
 
 ---
 
@@ -138,6 +138,15 @@ The original schema stored full transcripts inline on `sessions`, the table quer
 The original sync design implicitly assumed a single device; a future iPad or replacement iPhone had no defined cursor/ownership model.
 
 **Mitigation:** `device_sync_state` table + local `SyncState` watermark (`ARCHITECTURE.md` §4) introduced now, before a second device exists, specifically so onboarding a second device later is additive rather than a sync redesign. **Status: Mitigated by design**, low urgency until a second device is actually in use.
+
+---
+
+## R-15 — Free-tier AI provider dependency (identified 2026-08-10, zero-cost constraint)
+**Likelihood:** Medium-High · **Impact:** High
+
+`ARCHITECTURE_DECISIONS.md` ADR-025 moved the conversation engine from paid Anthropic Claude to Groq's free tier (`llama-3.3-70b-versatile`), per Julia's confirmed zero-cost constraint. A free tier is a materially weaker guarantee than a paid API contract: the vendor can narrow rate limits, discontinue the free tier, or change model availability with no notice and, by construction, no paid-recourse fallback (there is no "raise the ceiling by paying more" option if the product itself won't pay). This is a different failure mode from R-05 (paid-vendor deprecation over a multi-year horizon) — it can happen abruptly, not just at a model-lifecycle boundary.
+
+**Mitigation:** The same `ConversationEngine` protocol abstraction (ADR-002/ADR-005) that made the Groq swap itself a one-adapter change also bounds the blast radius of a future free-tier disruption — a second free-tier adapter (or reconsidering the zero-cost constraint) is a swap, not a rewrite. No mitigation exists for the underlying volatility itself; this is an accepted, actively-monitored trade-off of the zero-cost decision, not a solved problem. Revisit this risk's status whenever Groq's terms change or a session hits its rate limit in practice.
 
 ---
 

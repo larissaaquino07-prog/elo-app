@@ -31,8 +31,8 @@ Logged per relevant event, aggregated server-side for review:
 
 - App launch time (cold/warm).
 - Sync duration, success/failure rate, rows transferred.
-- API latency per engine (Claude, OpenAI Realtime, native fallback) — p50/p95/p99.
-- Token usage (input/output) and estimated cost, per call and rolled up per session/day/month.
+- API latency per engine (Groq, browser `SpeechRecognition`, `expo-speech` — ADR-025/ADR-026, replacing the original Claude/OpenAI Realtime pair) — p50/p95/p99.
+- Request/token usage per call, rolled up per session/day/month — tracking Groq's free-tier rate-limit headroom (`RISKS.md` R-06/R-15), not a dollar cost, since 2026-08-10.
 - Prompt cache hit rate (validates `PROMPT_ENGINE.md` §9's cost strategy with real numbers, not assumption).
 - Background task (`expo-background-task` on iOS/Android; best-effort on web, `ARCHITECTURE_DECISIONS.md` ADR-024) success/failure and completion latency.
 
@@ -59,9 +59,9 @@ No per-tap event streams, no third-party identifiers, no content. This is enough
 
 ## 7. AI call monitoring
 
-Per call, logged (metadata only, §1): engine (`Claude` / `OpenAI Realtime` / native fallback), latency, tokens in/out, cost, outcome (success/failure/timeout), and whether a fallback was triggered. This feeds three things directly:
-- The cost dashboard (`TASKS.md` T6-01) — real spend data against the D4 budget posture.
-- Voice reliability signal — the fallback-engagement rate is itself a health indicator for `RISKS.md` R-01 (if fallback triggers often, the primary voice path needs attention, independent of whether any single session "worked").
+Per call, logged (metadata only, §1): engine (`Groq` / browser `SpeechRecognition` / `expo-speech` — 2026-08-10, replacing `Claude`/`OpenAI Realtime`), latency, tokens in/out, rate-limit headroom, outcome (success/failure/timeout/rate-limited). This feeds three things directly:
+- The usage dashboard (`TASKS.md` T6-01) — real rate-limit-headroom data against the zero-cost D4 posture, not spend (there is none to track).
+- Voice reliability signal — since ADR-026 removed the fallback model entirely (web `SpeechRecognition` either works or it doesn't; iOS/Android has no voice input to fall back from), this now tracks raw `SpeechRecognition` failure rate as the direct health indicator for `RISKS.md` R-01, not a fallback-engagement rate.
 - Provider-swap validation — comparative latency/cost/quality data across engines, useful evidence if `ARCHITECTURE_DECISIONS.md` ADR-002/ADR-005's swappability is ever exercised for real.
 
 ## 8. Performance indicators

@@ -97,7 +97,7 @@ Chat/conversation text uses `Body` at a very slightly increased line height (1.3
 
 ### 5.4 Navigation
 - **Expo Router** (`ARCHITECTURE_DECISIONS.md` ADR-022), not a custom-built tab bar — a deliberate departure from the discontinued prototype's custom blur tab bar, chosen fresh for its own current merits (file-based routing, typed routes, built on React Navigation, actively maintained by the Expo team), not because that prototype once used a related library. Comes with solid accessibility and platform-convention behavior out of the box, and requires no bespoke maintenance across OS versions (directly serves `RISKS.md` R-04, maintainability).
-- Tabs: Coach (conversation), Progress, Memory (searchable history/vocabulary), Profile — four, matching the app's actual pillars (`PROJECT.md` §6), not padded out for symmetry. On web/PWA, the Coach tab's voice mode is unavailable (companion-surface scope, `ARCHITECTURE_DECISIONS.md` ADR-024) — text sessions remain fully available there.
+- Tabs: Coach (conversation), Progress, Memory (searchable history/vocabulary), Profile — four, matching the app's actual pillars (`PROJECT.md` §6), not padded out for symmetry. **Reversed 2026-08-10 (ADR-026, zero-cost constraint):** on web/PWA, the Coach tab's voice mode is now the **only** voice-input path (browser `SpeechRecognition`) — the opposite of this section's original framing. On iOS/Android (Expo Go, no custom dev client), voice input is unavailable; text sessions remain fully available there. Conditional on the zero-cost constraint holding — see `ARCHITECTURE_DECISIONS.md` ADR-026.
 
 ## 6. Animation & transitions
 

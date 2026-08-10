@@ -87,11 +87,13 @@ Context package assembled per session (built by the backend Session Orchestrator
 
 ## 9. Strategies to reduce token cost (supports D4 / `RISKS.md` R-06)
 
-- **Prompt caching** on the static Persona & Rules block (§7.1) and, where the provider supports it, on `learner_profile` between calls within a session.
-- **Right-sized model per job**: the main conversation uses the strongest available model; the Memory Extraction Job and `learner_profile` merge-update (both background, non-interactive) use a smaller/cheaper model tier where quality is provably sufficient — validated during Phase 1/2, not assumed.
-- **Native voice fallback** (`ARCHITECTURE.md` §5.4) incurs no LLM/voice API cost at all for degraded/offline sessions — a direct cost lever, not just a reliability one.
-- **No redundant context resends**: the Realtime API's own session-level context is trusted for in-session continuity rather than re-sending the full context package on every turn.
-- Token/cost usage logged per call (`OBSERVABILITY.md` §7) so these strategies are validated with real numbers, not assumptions.
+**2026-08-10 technology-note update (zero-cost constraint, ADR-025):** D4 no longer means "minimize a dollar bill" — it means "stay within Groq's free-tier rate limit" (1,000 requests/day, 30 RPM). The reasoning below still holds, retargeted at *requests*, not tokens/dollars:
+
+- **Prompt caching** on the static Persona & Rules block (§7.1) and, where the provider supports it, on `learner_profile` between calls within a session — Groq's free tier doesn't bill per token, so this lever's value shifts from "cheaper" to "faster response, less rate-limit pressure per session," not eliminated.
+- **Right-sized model per job**: the main conversation uses Groq's `llama-3.3-70b-versatile`; the Memory Extraction Job and `learner_profile` merge-update (both background, non-interactive) should use whatever's lightest within the same free tier where quality is provably sufficient — validated during Phase 1/2, not assumed. There is no "cheaper tier" to fall back to the way a paid API offered one; a request saved is a request saved, full stop.
+- **Native voice fallback** (`ARCHITECTURE.md` §5.4) — under ADR-026, this is no longer a *fallback*, it's the entire voice-output mechanism on iOS/Android (`expo-speech`) and pairs with browser `SpeechRecognition` on web; it still incurs no LLM-request cost for the voice leg itself.
+- **No redundant context resends**: applies the same way against Groq's request-based rate limit that it did against OpenAI Realtime's session-level context — avoid re-sending the full context package on every turn.
+- Usage logged per call (`OBSERVABILITY.md` §7) — now tracking rate-limit headroom (`RISKS.md` R-06/R-15), not spend.
 
 ## 10. Encouragement without repetition
 
