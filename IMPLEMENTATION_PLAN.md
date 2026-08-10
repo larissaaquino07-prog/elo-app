@@ -2,7 +2,7 @@
 
 The technical execution plan for building the application, decomposed into 26 macro-stages and ~140 small, independent, verifiable tasks. This document is the **how and in what order**; `TASKS.md` remains the **what and priority** backlog.
 
-**Status: implementation started.** Macro-stages 1–3 are closed: project skeleton, Presentation folder structure + file-header convention, and the monorepo workspace (`@coach/domain`/`@coach/data`, boundary enforcement via ESLint — a real gap in ADR-021's original module-resolution claim was found and corrected along the way, see ADR-021's 2026-08-10 note). Macro-stage 4 (`expo-sqlite`/Drizzle local persistence) up next. Macro-stages 5+ remain open.
+**Status: implementation started.** Macro-stages 1–4 are closed: project skeleton, Presentation folder structure + file-header convention, the monorepo workspace (`@coach/domain`/`@coach/data`, boundary enforcement via ESLint — a real gap in ADR-021's original module-resolution claim was found and corrected along the way, see ADR-021's 2026-08-10 note), and local persistence (`expo-sqlite` + Drizzle, real generated migrations, 21 passing tests). One honest open item carried forward from macro-stage 4: `createProductionDb`'s actual on-device/web runtime behavior is unverified (needs a physical device, or a decision on whether web needs local SQLite at all — see task 4.3). Macro-stage 5 (Supabase) needs Julia's Supabase account before it can proceed for real. Macro-stages 5+ remain open.
 
 **Physical-device verification note (added at task 1.1):** this Claude Code Remote session runs in an ephemeral container with no network path to Julia's iPhone or notebook, so any completion criterion requiring an on-device check (e.g., "scan the QR code in Expo Go") is split into two layers going forward — agreed with Julia 2026-08-07: (1) everything automatable in-session (compiles, boots, type-checks, a headless-browser screenshot of the web target as a visual proxy) is verified here and the task is marked done on that basis; (2) the physical-device confirmation itself is deferred to Julia, done whenever practical, and does not block subsequent tasks. Each task below notes explicitly when this split applies.
 
@@ -267,61 +267,73 @@ Unchanged from the original plan — macro-stage-to-`ROADMAP.md`-phase and `TASK
 **Depends on:** macro-stage 3.
 
 ### 4.1 — Add `expo-sqlite` and Drizzle ORM
+- **Status: ✅ Done (2026-08-10).**
 - **Objetivo:** install `expo-sqlite` and `drizzle-orm` (+ `drizzle-kit` for migrations) in `packages/core/data`.
 - **Criar:** —
 - **Modificar:** `packages/core/data/package.json`.
 - **Depende de:** macro-stage 3
 - **Critérios de conclusão:** both packages install and resolve correctly within the workspace.
-- **Riscos:** Drizzle's Expo SQLite driver maturity, per `ARCHITECTURE.md` §15's flagged open item — do a short spike here specifically before committing further, not later.
-- **Testes:** a trivial "open a database, run one query" smoke test.
+- **Execução real:** `expo-sqlite@~57.0.1` (matching apps/mobile's SDK 57 range), `drizzle-orm@^0.45.2`, `drizzle-kit@^0.31.10` (dev). Test tooling chosen here too, since 4.2 needed it immediately: `vitest` + `better-sqlite3` (+ `@types/better-sqlite3`) as devDependencies — `packages/core/data` has zero React Native dependencies, so plain Vitest works without `jest-expo`'s RN-mocking preset; the unit-test-runner choice for the whole monorepo (apps/mobile does need RN mocking) is left to macro-stage 24, not locked in here.
+- **Riscos:** Drizzle's Expo SQLite driver maturity, per `ARCHITECTURE.md` §15's flagged open item — do a short spike here specifically before committing further, not later. *(The maturity risk materialized in a concrete, fixable way: see 4.4's Metro/Babel findings, not a dead end.)*
+- **Testes:** the trivial smoke test lives in `dbFactory.test.ts` (4.3) once the factory exists — see that task.
 - **Impacto na arquitetura:** implements ADR-020.
 - **Execution Environment: Any Environment.**
 
 ### 4.2 — Define the Drizzle schema
+- **Status: ✅ Done (2026-08-10).**
 - **Objetivo:** `CachedSession`, `CachedVocabularyItem`, `CachedMistake`, `CachedTopic`, `CachedGoal`, `SyncState` tables — matching `ARCHITECTURE.md` §9.2 field-for-field, each with a comment pointing at its Postgres counterpart table (§9.1).
 - **Criar:** `packages/core/data/src/sqlite/schema.ts`.
 - **Modificar:** —
 - **Depende de:** 4.1
 - **Critérios de conclusão:** schema compiles; a unit test creates, inserts, and fetches a row from an in-memory/temporary database successfully.
+- **Execução real:** `ARCHITECTURE.md` §9.2 is explicitly "illustrative" and only shows `cachedSessions`/`syncState` — the other four tables were designed here, following that same pattern (localId/remoteId/syncStatus shape), against their §9.1 Postgres counterparts. Every enum-shaped field got both a Drizzle TS `enum` (compile-time only) **and** an explicit SQL `check()` constraint — mirroring Postgres's own `check (... in (...))` rigor with real runtime enforcement, not just a TypeScript narrowing that a JSON boundary or a bug could silently bypass; this wasn't explicitly asked for by the task but follows directly from "matching §9.2 field-for-field" read in light of §9.1's own constraint discipline.
 - **Riscos:** field drift from the Postgres schema — mitigated by the comment cross-reference and macro-stage 7's mapper tests.
-- **Testes:** unit test against a temporary SQLite database (Drizzle supports in-memory/temp-file test databases).
+- **Testes:** see 4.5 — folded into the full model-level suite rather than a separate smoke test, since 4.5 ended up covering this exact criterion for every table.
 - **Impacto na arquitetura:** implements the local half of `ARCHITECTURE.md` §9.2.
 - **Execution Environment: Any Environment.**
 
 ### 4.3 — Set up the injectable database connection factory
+- **Status: ✅ Done (2026-08-10) — production-path runtime verification incomplete, documented honestly below, not glossed over.**
 - **Objetivo:** a factory producing a production (on-disk) or test (in-memory/temp-file) database connection, constructor-injectable — never a global singleton (ADR-012).
 - **Criar:** `packages/core/data/src/sqlite/dbFactory.ts`.
 - **Modificar:** —
 - **Depende de:** 4.2
 - **Critérios de conclusão:** app launches with the production connection; data survives a relaunch (manual on-device test); unit tests use the in-memory/temp variant with confirmed isolation between test runs.
-- **Riscos:** `expo-sqlite`'s file-level protection defaults — verify explicitly against `NON_FUNCTIONAL_REQUIREMENTS.md` §6, don't assume a secure default.
-- **Testes:** unit test (in-memory/temp); manual on-device relaunch-persistence test.
+- **Execução real:** `createProductionDb()` (expo-sqlite, dynamic `import()`) and `createTestDb()` (better-sqlite3, static import) in one file. A real, non-obvious finding: a *static* top-level `expo-sqlite` import made the whole file fail to load in plain Vitest — even for tests that only touch `createTestDb` — because expo-sqlite's own module resolution assumes the Expo/Metro runtime. Fixed by making `createProductionDb`'s expo-sqlite/drizzle imports dynamic (`await import(...)`), deferring evaluation until that function is actually called.
+- **NON_FUNCTIONAL_REQUIREMENTS.md §6 risk, checked not assumed:** `expo-sqlite@57.0.1`'s `SQLiteOpenOptions` exposes **no** encryption or file-protection-level setting — no SQLCipher, nothing equivalent to requesting `NSFileProtectionComplete` on iOS. This factory only avoids overriding the default (OS-sandboxed) database directory; it cannot request a *stronger* protection tier than whatever the OS default is. Flagged as a real, current stack limitation — a candidate `RISKS.md` entry if Julia wants it tracked explicitly, not added unilaterally here.
+- **Riscos:** `expo-sqlite`'s file-level protection defaults — verify explicitly against `NON_FUNCTIONAL_REQUIREMENTS.md` §6, don't assume a secure default. *(Verified — see above; the honest answer is "no stronger option exists in this SDK version," not "confirmed secure.")*
+- **Testes:** unit tests (`dbFactory.test.ts`) cover `createTestDb`'s smoke query, isolation between separate in-memory instances, and temp-file persistence across separate factory calls. **`createProductionDb`'s runtime behavior is unverified in this session**: a temporary wiring into `apps/mobile/app/index.tsx` (reverted after the check, not shipped) surfaced a real Metro bundling failure on the web target — expo-sqlite's web implementation needs a WASM worker Metro doesn't resolve by default. Rather than chase a Metro/WASM fix blind, this surfaced an open architecture question, not decided here: **does the web/PWA target need local SQLite at all**, given ADR-024's original framing (web talks to Supabase directly for its companion-surface scope — progress review, history, text sessions — rather than needing an offline-first local cache the way iOS/Android does)? If the answer is "no," this Metro/WASM gap is moot; if "yes," it needs solving before web ships anything data-backed. The on-device (iOS/Android) relaunch-persistence check needs a physical device/emulator, per this task's own Execution Environment split — not available in this session either.
 - **Impacto na arquitetura:** implements `ARCHITECTURE.md` §7's local data-protection requirement.
 - **Execution Environment: Any Environment** for the code and unit tests; the on-device relaunch-persistence manual check needs a physical device or simulator/emulator, still zero macOS dependency (Android emulator or a physical iPhone via Expo Go both work from any host OS).
 
 ### 4.4 — Establish the schema migration mechanism
+- **Status: ✅ Done (2026-08-10) — the dry run genuinely ran and was reverted, not simulated.**
 - **Objetivo:** Drizzle's migration-file mechanism (`drizzle-kit generate`), even for a single initial version, proven before real data depends on it.
 - **Criar:** `packages/core/data/src/sqlite/migrations/` (generated), `drizzle.config.ts`.
 - **Modificar:** 4.3's factory to run pending migrations on startup.
 - **Depende de:** 4.2
 - **Critérios de conclusão:** a one-time dry run — add a throwaway field, generate a migration, confirm existing data survives, then revert the throwaway field — passes.
+- **Execução real:** `drizzle.config.ts` needed `driver: "expo"` specifically (not just `dialect: "sqlite"`) — found via `drizzle-kit generate --help` after the generic config produced plain `.sql` files with no way to load them from React Native. The `expo` driver mode additionally generates `migrations.js`, which `import`s each `.sql` file as a string — which itself doesn't work in Metro without two more real additions, found via an actual `Unable to resolve "./0000_xxx.sql"` bundling error, not anticipated upfront: `babel-plugin-inline-import` (new `apps/mobile/babel.config.js`, first one this project has needed) configured for `.sql`, plus `metro.config.js`'s `resolver.sourceExts.push("sql")` (new `apps/mobile/metro.config.js`, also first one needed — also sets `watchFolders` to the monorepo root, for `.sql` file watching across the workspace boundary specifically, since task 3.4 already found Metro resolves the `@coach/*` packages themselves with zero config). `createProductionDb` now runs `migrate()` before returning a connection; `createTestDb` runs the equivalent better-sqlite3 migrator against the same generated `.sql` files.
+- **The actual dry run:** added a throwaway nullable column to `cachedGoals`, ran `drizzle-kit generate` for real (produced `0001_familiar_songbird.sql`, a plain additive `ALTER TABLE`), then a dedicated test applied migration `0000` alone to a temp-file database, inserted a row, closed the connection, reopened it and applied `0001` on top of the *same file* — the only way to actually exercise "does data survive," since applying both migrations fresh to a new database never tests that. Confirmed: the pre-existing row survived with the new column `null`, and a new row could populate it. Reverted immediately after: throwaway field removed from `schema.ts`, `0001` deleted, `drizzle-kit generate` re-run to confirm a clean single-migration baseline, dry-run test file deleted per its own stated purpose.
 - **Riscos:** deferring this "until it's actually needed" is precisely how migration debt accumulates — deliberately front-loaded, same reasoning as the original SwiftData-era task.
-- **Testes:** the dry-run migration test described above.
+- **Testes:** the dry-run migration test described above, plus re-verification that `tsc`, `eslint`, the full test suite, and an `expo start --web` bundle all stayed clean after the Babel/Metro config additions.
 - **Impacto na arquitetura:** implements `ARCHITECTURE.md` §4's migration strategy requirement.
 - **Execution Environment: Any Environment.**
 
 ### 4.5 — Model-level unit test suite
+- **Status: ✅ Done (2026-08-10).**
 - **Objetivo:** validate constraints (e.g. `localId` uniqueness, `syncStatus` enum values) for every table from 4.2.
 - **Criar:** `packages/core/data/test/sqlite/*.test.ts`.
 - **Modificar:** —
 - **Depende de:** 4.2, 4.3
 - **Critérios de conclusão:** all tests green; contributes to `NON_FUNCTIONAL_REQUIREMENTS.md` §11's Data-layer ≥50% coverage target.
+- **Execução real:** 21 tests across `schema.test.ts` (18) and `dbFactory.test.ts` (3), all passing, all running against the real generated migration (4.4) rather than a separate hand-written DDL fixture — `schema.test.ts` originally used hand-written DDL, written before 4.4 existed, and was switched over once 4.4 landed rather than left as a second, potentially-drifting source of truth. Every one of the six tables gets a creates/inserts/fetches test; every table with a `localId` primary key gets an explicit duplicate-rejection test; every table with an enum-shaped field gets an explicit SQL-level `CHECK constraint failed` test (not just relying on the TypeScript type) — genuinely "every table," not just the one the earlier draft of this entry covered.
 - **Riscos:** low.
-- **Testes:** as described, via Jest or Vitest.
+- **Testes:** via Vitest (see 4.1's tooling note).
 - **Impacto na arquitetura:** establishes the coverage baseline for the Data layer.
 - **Execution Environment: Any Environment.**
 
-**Macro-stage exit criteria:** all local tables defined and tested, database connection injectable, migration mechanism proven with a real dry run.
+**Macro-stage exit criteria:** all local tables defined and tested, database connection injectable, migration mechanism proven with a real dry run. **✅ Met (2026-08-10)**, with one honestly-flagged gap carried forward rather than hidden: `createProductionDb`'s actual runtime behavior (as opposed to its `tsc`-clean type signature) is unverified — web hits a real Metro/WASM gap tied to an open architecture question (does web need local SQLite at all?), and iOS/Android needs a physical device/emulator this session doesn't have. Not a blocker for macro-stage 5+, which is where `createProductionDb` gets exercised for real.
 
 ---
 

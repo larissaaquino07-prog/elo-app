@@ -61,7 +61,7 @@ Measurable non-functional requirements (NFRs). Where `ARCHITECTURE.md` states a 
 | Data at rest (device) | `expo-sqlite` store, OS-level file protection on iOS/Android; **web/PWA storage has no OS-level equivalent** — a documented, accepted asymmetry (`ARCHITECTURE.md` §7, `ARCHITECTURE_DECISIONS.md` ADR-024) |
 | Secrets | Never present in the client bundle or `expo-secure-store` in plaintext beyond a short-lived session token; vendor API keys exist only in backend Edge Function secrets, rotated at least every 12 months |
 | App-level access | Face ID/Touch ID gate on iOS/Android (`expo-local-authentication`), default re-lock after 5 minutes in background; **web uses a PIN/password fallback, no WebAuthn** (`ARCHITECTURE.md` §7, ADR-011, ADR-024) |
-| Third-party AI data usage | Verified (not assumed) at implementation time that Anthropic/OpenAI API-tier traffic is excluded from model training |
+| Third-party AI data usage | **Updated 2026-08-10 (ADR-025):** Groq's free tier is explicitly documented as not training on submitted data — the deciding factor over Gemini's larger-quota free tier (`RISKS.md` R-09). Verify (not assume) this remains true at implementation time and again periodically, same discipline the original Anthropic/OpenAI-focused wording called for. |
 
 ## 7. Accessibility
 
