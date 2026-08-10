@@ -1,0 +1,17 @@
+{
+  "name": "workspace-root",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/core/*"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "eslint": "^10.8.1",
+    "eslint-plugin-boundaries": "^7.2.0",
+    "typescript-eslint": "^8.67.0"
+  }
+}

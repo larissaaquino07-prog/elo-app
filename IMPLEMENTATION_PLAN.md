@@ -2,7 +2,7 @@
 
 The technical execution plan for building the application, decomposed into 26 macro-stages and ~140 small, independent, verifiable tasks. This document is the **how and in what order**; `TASKS.md` remains the **what and priority** backlog.
 
-**Status: implementation started.** Macro-stage 1 (project skeleton) and macro-stage 2 (Presentation folder skeleton, file-header convention) are closed. Macro-stage 3 (monorepo workspace) in progress. Macro-stages 4+ remain open.
+**Status: implementation started.** Macro-stages 1–3 are closed: project skeleton, Presentation folder structure + file-header convention, and the monorepo workspace (`@coach/domain`/`@coach/data`, boundary enforcement via ESLint — a real gap in ADR-021's original module-resolution claim was found and corrected along the way, see ADR-021's 2026-08-10 note). Macro-stage 4 (`expo-sqlite`/Drizzle local persistence) up next. Macro-stages 5+ remain open.
 
 **Physical-device verification note (added at task 1.1):** this Claude Code Remote session runs in an ephemeral container with no network path to Julia's iPhone or notebook, so any completion criterion requiring an on-device check (e.g., "scan the QR code in Expo Go") is split into two layers going forward — agreed with Julia 2026-08-07: (1) everything automatable in-session (compiles, boots, type-checks, a headless-browser screenshot of the web target as a visual proxy) is verified here and the task is marked done on that basis; (2) the physical-device confirmation itself is deferred to Julia, done whenever practical, and does not block subsequent tasks. Each task below notes explicitly when this split applies.
 
@@ -195,60 +195,69 @@ Unchanged from the original plan — macro-stage-to-`ROADMAP.md`-phase and `TASK
 
 ### 3.1 — Set up the monorepo workspace
 - **Objetivo:** convert the repository root into a workspace root (npm or pnpm workspaces), with `apps/mobile` and `packages/core/domain`, `packages/core/data` as workspace members.
+- **Status: ✅ Done (2026-08-10).**
 - **Criar:** root `package.json` (workspaces field), `packages/core/domain/package.json` (zero runtime dependencies), `packages/core/data/package.json` (depends on `@coach/domain`), placeholder `src/index.ts` in each.
 - **Modificar:** `apps/mobile/package.json` (add `@coach/domain`/`@coach/data` as workspace dependencies).
 - **Depende de:** macro-stage 1
 - **Critérios de conclusão:** `npm install` (or `pnpm install`) resolves all three packages correctly; each package's own `tsc --noEmit` passes standalone.
-- **Riscos:** workspace protocol misconfiguration causing a package to resolve from the npm registry instead of the local workspace — verify explicitly with a trivial exported symbol.
-- **Testes:** the trivial-symbol resolution check described above.
+- **Execução real:** npm workspaces (not pnpm — no reason to add a second package manager given the project already standardized on npm in macro-stage 1). Root `package.json` with `"workspaces": ["apps/*", "packages/core/*"]`; `apps/mobile/node_modules` and its own `package-lock.json` removed so the root becomes the single lockfile owner. `packages/core/tsconfig.base.json` holds the same seven strictness flags as `apps/mobile/tsconfig.json` (task 1.2) so every package in the monorepo carries the same rigor — deliberately **not** merged into one shared config via TS 5+'s array `extends`, since `expo/tsconfig.base` sets `module: "preserve"` specifically for Metro and overriding that for a marginal dedup gain risked real breakage; a small, bounded duplication was the safer call.
+- **Testes:** `npm install` from root — symlinks confirmed via `readlink -f node_modules/@coach/{domain,data}` resolving to `packages/core/{domain,data}`, not a registry download. Each package's own `tsc --noEmit` (`npm run typecheck` from root, added as a script, runs all three workspaces) — clean. `apps/mobile`'s own `tsc --noEmit` re-checked after the node_modules restructuring — still clean, nothing broke.
 - **Impacto na arquitetura:** physically instantiates ADR-013's goal and ADR-021's mechanism.
 - **Execution Environment: Any Environment.**
 
 ### 3.2 — Verify the Domain/Data boundary is enforced
+- **Status: ✅ Done (2026-08-10) — found ADR-021's own claim doesn't hold as built.**
 - **Objetivo:** prove ADR-021's actual point — that `@coach/domain` cannot import from `@coach/data` or any persistence/network SDK.
 - **Criar:** a temporary, throwaway file inside `packages/core/domain` that attempts `import { createClient } from '@supabase/supabase-js'` (not yet a dependency of that package).
 - **Modificar:** — (the throwaway file is deleted immediately after the check).
 - **Depende de:** 3.1
 - **Critérios de conclusão:** the throwaway import fails module resolution (package not in `packages/core/domain/package.json`'s dependencies); deleted, clean state restored.
-- **Riscos:** none — this is itself a verification task.
-- **Testes:** the resolution-failure check described above, done once.
-- **Impacto na arquitetura:** confirms ADR-021 holds before anything depends on it.
+- **Execução real — a real, load-bearing finding, not just a pass/fail check:** the `@supabase/supabase-js` import failed as expected (it isn't installed anywhere in the monorepo yet), but a second check — `packages/core/domain` importing `@coach/data` directly — **succeeded with no error at all**, at both the `tsc` and plain Node module-resolution level. npm workspace hoisting symlinks every workspace package into the shared root `node_modules/@coach/*`; TypeScript/Node module resolution walks node_modules without consulting a package's own `package.json` `dependencies` field to gate what it's *allowed* to import — it only cares whether the target resolves at all. ADR-021's "Consequences" text ("A domain file attempting `import { ... } from '@coach/data'` fails at module resolution, not just at lint time") is **not accurate as built**. `ARCHITECTURE_DECISIONS.md` ADR-021 corrected accordingly (see below) rather than left misleading.
+- **Riscos:** none — this is itself a verification task. *(Correct in spirit; the task still surfaced a real gap in the mechanism it was meant to confirm, which is exactly what this kind of check is for.)*
+- **Testes:** the resolution-failure check described above, done once — plus the unplanned `@coach/data` check that found the gap.
+- **Impacto na arquitetura:** confirms ADR-021 holds before anything depends on it. *(Partially — confirmed the SDK-isolation half; found the sibling-package half doesn't hold without 3.3's lint rule, which this finding promotes from "defense-in-depth" to the actual primary enforcement mechanism for that specific direction.)*
 - **Execution Environment: Any Environment.**
 
 ### 3.3 — Install the ESLint boundary rule
+- **Status: ✅ Done (2026-08-10) — now the primary enforcement for domain↔data, not defense-in-depth (per 3.2's finding).**
 - **Objetivo:** `eslint-plugin-boundaries` (or an equivalent import-restriction rule) configured to flag any `packages/core/domain` file importing from `packages/core/data` or `apps/mobile`, as defense-in-depth alongside 3.2's dependency-graph enforcement.
 - **Criar:** ESLint configuration for the boundary rule (root `.eslintrc` or per-package config).
 - **Modificar:** —
 - **Depende de:** 3.1
 - **Critérios de conclusão:** a deliberately-introduced cross-boundary import (temporary) is flagged by `eslint`; reverted after the check.
-- **Riscos:** an overly strict rule blocking legitimate imports (e.g., shared types) — tune the rule's scope carefully, test both a violation and a legitimate import.
-- **Testes:** the deliberate-violation lint check, plus a legitimate-import sanity check.
-- **Impacto na arquitetura:** the defense-in-depth half of ADR-021.
+- **Execução real:** `eslint` 10.8.1 + `eslint-plugin-boundaries` 7.2.0 + `typescript-eslint` 8.67.0, root `eslint.config.mjs` (flat config). Two real API surprises found by testing against the actual installed version rather than assuming a remembered API: (1) `checkAllOrigins` defaults to `false` — the rule only checks relative-path ("local") imports by default, and a bare specifier like `@coach/data` resolves through node_modules and is classified "external" origin, silently skipped, until this is set explicitly; (2) `@coach/domain`/`@coach/data` don't map back to the `packages/core/*` **element** patterns by resolved path (the plugin sees the node_modules symlink, not the real path) — the domain↔data boundary had to be matched by `module.source` (the package name string) instead of `element.type`, which only works reliably for path-based (non-npm-resolved) locations like `apps/mobile`. Also switched `default` from `"disallow"` to `"allow"`: an allowlist model blocked apps/mobile's own legitimate `react-native`/`expo-router` imports, which was never the point — ADR-021 is about domain's isolation and inward-pointing dependencies specifically, not an allowlist of every real package the app or data layer needs.
+- **Riscos:** an overly strict rule blocking legitimate imports (e.g., shared types) — tune the rule's scope carefully, test both a violation and a legitimate import. *(Materialized exactly as predicted — `default: "disallow"` blocked `react-native` itself — caught by this task's own required legitimate-import test and fixed before it shipped.)*
+- **Testes:** deliberate-violation check (`@coach/domain` importing `@coach/data`) — flagged with a clear, accurate message. Legitimate-import check (`@coach/data` importing `@coach/domain`) — passes clean. Full-repository `eslint .` run — zero errors, one pre-existing harmless warning in an Expo-generated file, since excluded via `ignores` (`.expo/`, `node_modules/`, `dist/`, `web-build/`). Root `npm run lint` script added.
+- **Impacto na arquitetura:** the defense-in-depth half of ADR-021 — corrected in ADR-021 itself (see 3.2) to state this is the *primary* mechanism for the domain↔data direction specifically, module resolution alone isn't.
 - **Execution Environment: Any Environment.**
 
 ### 3.4 — Add `@coach/domain`/`@coach/data` as dependencies of `apps/mobile`
+- **Status: ✅ Done (2026-08-10).**
 - **Objetivo:** wire the packages into the Expo app.
 - **Criar:** —
 - **Modificar:** `apps/mobile/package.json`, a trivial `import` smoke line in the app root (removed once real usage exists in a later stage).
 - **Depende de:** 3.1
 - **Critérios de conclusão:** the Expo app builds/runs importing both packages without error.
-- **Riscos:** Metro bundler (Expo's default bundler) not resolving monorepo workspace packages correctly — a known class of issue with monorepos + Metro; verify explicitly, configure `metro.config.js`'s `watchFolders`/`resolver` if needed.
-- **Testes:** dev-server run + import smoke test.
+- **Execução real:** `@coach/domain`/`@coach/data` added to `apps/mobile/package.json` as `"*"` workspace deps; the root placeholder screen (`app/index.tsx`) imports and renders a marker string from each, as the smoke test this task specifies. No `metro.config.js` changes were needed — Expo SDK 57's default Metro config resolved the workspace packages correctly with zero extra configuration, so the predicted `watchFolders`/`resolver` risk didn't materialize.
+- **Riscos:** Metro bundler (Expo's default bundler) not resolving monorepo workspace packages correctly — a known class of issue with monorepos + Metro; verify explicitly, configure `metro.config.js`'s `watchFolders`/`resolver` if needed. *(Checked, did not materialize — see above.)*
+- **Testes:** `tsc --noEmit` clean; `expo start --web` bundled (855 modules) and served; headless-Chromium screenshot confirms "`@coach/domain / @coach/data resolved.`" rendering on-screen, proving the chain works at runtime, not just at type-check time.
 - **Impacto na arquitetura:** connects Presentation to Domain/Data per `ARCHITECTURE.md` §2.
 - **Execution Environment: Any Environment.**
 
 ### 3.5 — Establish internal folder structure within each package
+- **Status: ✅ Done (2026-08-10).**
 - **Objetivo:** `packages/core/domain/src/{entities,use-cases,protocols}`, `packages/core/data/src/{sqlite,supabase,mappers,sync,security,ai-provider,notifications,audio}`.
 - **Criar:** folder groups with placeholder files.
 - **Modificar:** —
 - **Depende de:** 3.1
 - **Critérios de conclusão:** structure matches `ARCHITECTURE.md` §9's layering; every later macro-stage's file paths in this plan resolve into this structure.
-- **Riscos:** low.
-- **Testes:** build check.
+- **Execução real:** all ten subfolders created, each with a placeholder `README.md` following the file-header convention (task 2.2) — one-line purpose plus the exact `ARCHITECTURE.md`/ADR section that folder will implement, so the empty skeleton documents the plan rather than sitting silent.
+- **Riscos:** low. *(Held.)*
+- **Testes:** `npm run typecheck` (all three packages) and `npx eslint .` (whole repo) re-run clean after adding the folders.
 - **Impacto na arquitetura:** finalizes the Data-layer subfolder plan referenced throughout the rest of this document.
 - **Execution Environment: Any Environment.**
 
-**Macro-stage exit criteria:** monorepo workspace exists with `@coach/domain`/`@coach/data` enforced (dependency graph + lint rule), linked into `apps/mobile`, internal structure in place.
+**Macro-stage exit criteria:** monorepo workspace exists with `@coach/domain`/`@coach/data` enforced (dependency graph + lint rule), linked into `apps/mobile`, internal structure in place. **✅ Met (2026-08-10)** — with the caveat, now accurately documented, that the lint rule is the real enforcement for the domain↔data direction, not the dependency graph alone.
 
 ---
 
