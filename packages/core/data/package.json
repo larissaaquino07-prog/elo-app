@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@coach/domain": "*",
+    "@supabase/supabase-js": "^2.112.3",
     "drizzle-orm": "^0.45.2",
+    "expo-secure-store": "~57.0.1",
     "expo-sqlite": "~57.0.1"
   },
   "devDependencies": {
